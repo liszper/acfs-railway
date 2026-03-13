@@ -1,0 +1,26 @@
+#!/bin/bash
+# OSC 52 clipboard helper for web terminals (ttyd)
+# Usage: echo "text" | clip        (copy stdin to clipboard)
+#        clip "text"               (copy argument to clipboard)
+#        clip -o                   (paste — prints tmux buffer)
+#
+# Works through tmux → ttyd → browser Clipboard API via OSC 52 escape sequences.
+# Requires: tmux set-clipboard on, allow-passthrough on (both set in ACFS tmux.conf)
+
+if [ "$1" = "-o" ] || [ "$1" = "--paste" ]; then
+    tmux save-buffer - 2>/dev/null || echo "No tmux buffer"
+    exit 0
+fi
+
+if [ -n "$1" ]; then
+    data=$(printf '%s' "$@" | base64 | tr -d '\n')
+else
+    data=$(base64 | tr -d '\n')
+fi
+
+# Detect if we're inside tmux — if so, wrap OSC 52 in tmux passthrough
+if [ -n "$TMUX" ]; then
+    printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data"
+else
+    printf '\e]52;c;%s\a' "$data"
+fi

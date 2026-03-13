@@ -1,0 +1,34 @@
+#!/bin/bash
+# xsel shim — routes clipboard operations through OSC 52
+# Some tools expect xsel instead of xclip. Same OSC 52 approach.
+#
+# Supported flags (subset matching real xsel):
+#   --clipboard, -b   (default, ignored — always uses clipboard)
+#   --input, -i       (copy stdin — default)
+#   --output, -o      (paste from tmux buffer)
+
+direction="in"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --clipboard|-b) ;; # default, no-op
+        --primary|-p)   ;; # treat same as clipboard
+        --input|-i)     direction="in" ;;
+        --output|-o)    direction="out" ;;
+        --append|-a)    direction="in" ;; # append treated as overwrite
+        *)              ;; # ignore unknown flags
+    esac
+    shift
+done
+
+if [ "$direction" = "out" ]; then
+    tmux save-buffer - 2>/dev/null || true
+    exit 0
+fi
+
+data=$(base64 | tr -d '\n')
+if [ -n "$TMUX" ]; then
+    printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data"
+else
+    printf '\e]52;c;%s\a' "$data"
+fi

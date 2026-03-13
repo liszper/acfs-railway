@@ -1,0 +1,38 @@
+#!/bin/bash
+# xclip shim — routes clipboard operations through OSC 52
+# Many tools (tmux plugins, scripts) expect xclip to exist.
+# This shim makes them work transparently in web terminals.
+#
+# Supported flags (subset matching real xclip):
+#   -selection clipboard   (default, ignored — always uses clipboard)
+#   -i                     (copy stdin to clipboard — default)
+#   -o                     (paste from tmux buffer)
+
+selection="clipboard"
+direction="in"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -selection) shift; selection="${1:-clipboard}" ;;
+        -sel)       shift; selection="${1:-clipboard}" ;;
+        -i)         direction="in" ;;
+        -o)         direction="out" ;;
+        -r)         direction="in" ;;
+        -f)         shift ;; # ignore file arg
+        *)          ;; # ignore unknown flags
+    esac
+    shift
+done
+
+if [ "$direction" = "out" ]; then
+    tmux save-buffer - 2>/dev/null || true
+    exit 0
+fi
+
+# Copy stdin to clipboard via OSC 52
+data=$(base64 | tr -d '\n')
+if [ -n "$TMUX" ]; then
+    printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data"
+else
+    printf '\e]52;c;%s\a' "$data"
+fi

@@ -412,6 +412,12 @@ RUN cp /opt/acfs-repo/acfs/zsh/p10k.zsh /home/dev/.p10k.zsh 2>/dev/null || true
 RUN cp /opt/acfs-repo/acfs/bin/acfs-update /usr/local/bin/acfs-update \
     && chmod +x /usr/local/bin/acfs-update 2>/dev/null || true
 
+# OSC 52 clipboard helpers (clip, xclip, xsel shims for web terminals)
+RUN for f in clip xclip xsel; do \
+        cp "/opt/acfs-repo/acfs/bin/$f" "/usr/local/bin/$f" 2>/dev/null \
+        && chmod +x "/usr/local/bin/$f"; \
+    done || true
+
 # Ensure dev owns everything
 RUN chown -R dev:dev /home/dev
 
