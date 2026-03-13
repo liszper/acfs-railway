@@ -428,6 +428,8 @@ const NTM_RECIPES = [
     id: "minimal",
     name: "Single Agent",
     desc: "One Claude agent for focused work",
+    detail: "Best for single-file edits, quick fixes, and simple tasks. One agent means zero coordination overhead.",
+    useCase: "Bug fixes, small features, config changes",
     agents: "1x Claude",
     cc: 1,
     cod: 0,
@@ -437,6 +439,8 @@ const NTM_RECIPES = [
     id: "quick-claude",
     name: "Quick Start",
     desc: "Two Claude agents for parallel tasks",
+    detail: "Split work between two Claude agents. One can implement while the other reviews or works on a separate module.",
+    useCase: "Parallel feature development, implement + review",
     agents: "2x Claude",
     cc: 2,
     cod: 0,
@@ -446,6 +450,8 @@ const NTM_RECIPES = [
     id: "full-stack",
     name: "Full Stack Team",
     desc: "Multi-model coverage for complex projects",
+    detail: "Claude handles architecture and complex logic, Codex handles boilerplate and repetitive code, Gemini provides a different perspective for review.",
+    useCase: "Full-stack apps, large refactors, new projects",
     agents: "3x Claude + 2x Codex + 1x Gemini",
     cc: 3,
     cod: 2,
@@ -455,6 +461,8 @@ const NTM_RECIPES = [
     id: "balanced",
     name: "Balanced Team",
     desc: "Equal representation across models",
+    detail: "Each model brings unique strengths. Equal distribution maximizes diversity of approach and catches model-specific blind spots.",
+    useCase: "Exploratory work, comparing approaches, diversified review",
     agents: "2x Claude + 2x Codex + 2x Gemini",
     cc: 2,
     cod: 2,
@@ -464,6 +472,8 @@ const NTM_RECIPES = [
     id: "codex-heavy",
     name: "Codex Focus",
     desc: "Codex-led team with Claude oversight",
+    detail: "Codex excels at code generation speed. Claude provides oversight and handles architectural decisions. Good for high-volume code output.",
+    useCase: "Rapid prototyping, boilerplate generation, test writing",
     agents: "1x Claude + 4x Codex",
     cc: 1,
     cod: 4,
@@ -473,6 +483,8 @@ const NTM_RECIPES = [
     id: "review-team",
     name: "Code Review",
     desc: "Dedicated reviewers with one implementer",
+    detail: "One Codex implements while two Claudes review independently. Catches more bugs through redundant review.",
+    useCase: "Critical code changes, security-sensitive work, production deploys",
     agents: "2x Claude + 1x Codex",
     cc: 2,
     cod: 1,
@@ -486,24 +498,52 @@ const NTM_TEMPLATES = [
     name: "TDD Red-Green",
     pattern: "ping-pong",
     desc: "Tester writes failing tests, implementer makes them pass",
+    detail: "Agent A writes a failing test. Agent B writes minimal code to pass it. Agent A writes the next test. Continues until the feature is complete.",
+    roles: [
+      { name: "Tester", agent: "Claude", desc: "Writes failing tests that define expected behavior" },
+      { name: "Implementer", agent: "Codex", desc: "Writes minimal code to make each test pass" },
+    ],
+    agents: { cc: 1, cod: 1, gmi: 0 },
   },
   {
     id: "review-pipeline",
     name: "Review Pipeline",
     pattern: "review-gate",
     desc: "Author implements, 2 reviewers must approve",
+    detail: "One agent implements the change. Two independent reviewers analyze for bugs, style, and correctness. Both must approve before the change is accepted.",
+    roles: [
+      { name: "Author", agent: "Codex", desc: "Implements the feature or fix" },
+      { name: "Reviewer 1", agent: "Claude", desc: "Reviews for correctness and architecture" },
+      { name: "Reviewer 2", agent: "Claude", desc: "Reviews for edge cases and security" },
+    ],
+    agents: { cc: 2, cod: 1, gmi: 0 },
   },
   {
     id: "specialist-team",
     name: "Specialist Team",
     pattern: "pipeline",
     desc: "Architect > 2 Implementers > QA tester",
+    detail: "Pipeline workflow: Architect designs the solution and defines interfaces, passes to implementers who build in parallel, then QA validates the integrated result.",
+    roles: [
+      { name: "Architect", agent: "Claude", desc: "Designs the solution and defines interfaces" },
+      { name: "Implementer A", agent: "Codex", desc: "Builds frontend / module A" },
+      { name: "Implementer B", agent: "Codex", desc: "Builds backend / module B" },
+      { name: "QA", agent: "Gemini", desc: "Tests the integrated result" },
+    ],
+    agents: { cc: 1, cod: 2, gmi: 1 },
   },
   {
     id: "parallel-explore",
     name: "Parallel Exploration",
     pattern: "parallel",
     desc: "3 agents explore different approaches simultaneously",
+    detail: "Three agents independently tackle the same problem using different strategies. Compare outputs to pick the best approach or combine insights.",
+    roles: [
+      { name: "Explorer A", agent: "Claude", desc: "Conventional/safe solution" },
+      { name: "Explorer B", agent: "Codex", desc: "Performance-optimized solution" },
+      { name: "Explorer C", agent: "Gemini", desc: "Alternative/creative solution" },
+    ],
+    agents: { cc: 1, cod: 1, gmi: 1 },
   },
 ];
 
@@ -615,17 +655,45 @@ function dashboardHTML(sessions) {
   /* Recipe/template grid */
   .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 0.75rem;
   }
   .card {
     background: #0d1117;
     border: 1px solid #30363d;
     border-radius: 6px;
-    padding: 1rem;
     transition: border-color 0.15s ease;
+    overflow: hidden;
   }
   .card:hover { border-color: #484f58; }
+  .card.expanded { border-color: #58a6ff; }
+
+  .card-summary {
+    padding: 1rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .card-summary-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .card-summary-left { flex: 1; min-width: 0; }
+
+  .card-chevron {
+    width: 20px;
+    height: 20px;
+    color: #484f58;
+    transition: transform 0.2s ease, color 0.15s ease;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .card:hover .card-chevron { color: #8b949e; }
+  .card.expanded .card-chevron { transform: rotate(180deg); color: #58a6ff; }
+
   .card-name {
     font-weight: 600;
     font-size: 0.9rem;
@@ -642,14 +710,161 @@ function dashboardHTML(sessions) {
     display: flex;
     gap: 0.375rem;
     flex-wrap: wrap;
-    margin-bottom: 0.65rem;
   }
   .card-pattern {
+    display: inline-block;
+    font-size: 0.65rem;
+    color: #58a6ff;
+    background: rgba(88, 166, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .card-agent-count {
     font-size: 0.7rem;
     color: #484f58;
-    margin-bottom: 0.5rem;
-    font-style: italic;
+    margin-left: auto;
+    white-space: nowrap;
   }
+
+  /* Expandable detail section */
+  .card-detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+  .card.expanded .card-detail {
+    max-height: 800px;
+  }
+  .card-detail-inner {
+    padding: 0 1rem 1rem;
+    border-top: 1px solid #21262d;
+  }
+  .card-detail-text {
+    font-size: 0.75rem;
+    color: #8b949e;
+    line-height: 1.5;
+    margin-top: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .card-use-case {
+    font-size: 0.7rem;
+    color: #484f58;
+    margin-bottom: 0.75rem;
+  }
+  .card-use-case strong {
+    color: #8b949e;
+    font-weight: 500;
+  }
+
+  /* Role breakdown */
+  .card-roles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .card-roles-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #484f58;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.15rem;
+  }
+  .card-role {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.45rem 0.6rem;
+    background: rgba(22, 27, 34, 0.5);
+    border: 1px solid #21262d;
+    border-radius: 4px;
+  }
+  .card-role-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #c9d1d9;
+    white-space: nowrap;
+    min-width: 80px;
+  }
+  .card-role-agent {
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .card-role-agent.agent-claude { background: rgba(88, 166, 255, 0.15); color: #58a6ff; }
+  .card-role-agent.agent-codex { background: rgba(63, 185, 80, 0.15); color: #3fb950; }
+  .card-role-agent.agent-gemini { background: rgba(210, 153, 34, 0.15); color: #d29922; }
+  .card-role-desc {
+    font-size: 0.7rem;
+    color: #8b949e;
+    line-height: 1.35;
+    flex: 1;
+  }
+
+  /* Spawn form inside cards */
+  .card-spawn-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #21262d;
+  }
+  .card-spawn-agents {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .card-spawn-agents .agent-counter { gap: 0.35rem; }
+  .card-spawn-agents .agent-counter label { font-size: 0.75rem; min-width: 46px; }
+  .card-spawn-agents .counter-btn { width: 24px; height: 24px; font-size: 0.8rem; }
+  .card-spawn-agents .counter-val { width: 28px; height: 24px; line-height: 24px; font-size: 0.8rem; }
+  .card-spawn-agents .counter-controls { border-radius: 3px; }
+
+  .card-spawn-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .card-spawn-row input[type="text"] {
+    background: #161b22;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 0.35rem 0.65rem;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    flex: 1;
+    min-width: 0;
+    outline: none;
+    width: auto;
+  }
+  .card-spawn-row input[type="text"]:focus { border-color: #58a6ff; }
+  .card-spawn-row input[type="text"]::placeholder { color: #484f58; }
+  .card-spawn-textarea {
+    width: 100%;
+    background: #161b22;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 0.4rem 0.65rem;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    resize: vertical;
+    min-height: 48px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .card-spawn-textarea:focus { border-color: #58a6ff; }
+  .card-spawn-textarea::placeholder { color: #484f58; }
+
   .card-footer {
     display: flex;
     gap: 0.5rem;
@@ -1342,39 +1557,141 @@ function dashboardHTML(sessions) {
       return pills.join('');
     }
 
-    // ---- Render recipe cards ----
+    var chevronSVG = '<svg class="card-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg>';
+
+    var recipeCounters = {};
+    RECIPES.forEach(function(r) {
+      recipeCounters[r.id] = { cc: r.cc, cod: r.cod, gmi: r.gmi };
+    });
+
+    function adjustRecipeCounter(recipeId, key, delta) {
+      var c = recipeCounters[recipeId];
+      c[key] = Math.max(0, Math.min(10, c[key] + delta));
+      var el = document.getElementById('rc-' + recipeId + '-' + key);
+      if (el) el.textContent = c[key];
+    }
+
+    function toggleCard(cardId) {
+      var card = document.getElementById(cardId);
+      if (card) card.classList.toggle('expanded');
+    }
+
+    function agentCounterHTML(recipeId, key, label, colorClass, val) {
+      return '<div class="agent-counter">' +
+        '<label class="' + colorClass + '">' + label + '</label>' +
+        '<div class="counter-controls">' +
+          '<button class="counter-btn" onclick="event.stopPropagation();adjustRecipeCounter(\\'' + recipeId + '\\',\\'' + key + '\\',-1)">-</button>' +
+          '<span class="counter-val" id="rc-' + recipeId + '-' + key + '">' + val + '</span>' +
+          '<button class="counter-btn" onclick="event.stopPropagation();adjustRecipeCounter(\\'' + recipeId + '\\',\\'' + key + '\\',1)">+</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function roleAgentClass(agent) {
+      if (agent === 'Claude') return 'agent-claude';
+      if (agent === 'Codex') return 'agent-codex';
+      if (agent === 'Gemini') return 'agent-gemini';
+      return '';
+    }
+
     function renderRecipes() {
       var grid = document.getElementById('recipeGrid');
       grid.innerHTML = '';
       RECIPES.forEach(function(r) {
+        var total = r.cc + r.cod + r.gmi;
         var div = document.createElement('div');
         div.className = 'card';
+        div.id = 'recipe-' + r.id;
         div.innerHTML =
-          '<div class="card-name">' + escapeHtml(r.name) + '</div>' +
-          '<div class="card-desc">' + escapeHtml(r.desc) + '</div>' +
-          '<div class="card-agents">' + agentPillsHTML(r.cc, r.cod, r.gmi) + '</div>' +
-          '<div class="card-footer">' +
-            '<input type="text" placeholder="' + escapeHtml(r.id) + '-..." id="rname-' + r.id + '">' +
-            '<button class="btn btn-create btn-sm" onclick="spawnRecipe(\\'' + r.id + '\\')">Spawn</button>' +
+          '<div class="card-summary" onclick="toggleCard(\\'recipe-' + r.id + '\\')">' +
+            '<div class="card-summary-top">' +
+              '<div class="card-summary-left">' +
+                '<div class="card-name">' + escapeHtml(r.name) + '</div>' +
+                '<div class="card-desc">' + escapeHtml(r.desc) + '</div>' +
+                '<div class="card-agents">' + agentPillsHTML(r.cc, r.cod, r.gmi) +
+                  '<span class="card-agent-count">' + total + ' agent' + (total !== 1 ? 's' : '') + '</span>' +
+                '</div>' +
+              '</div>' +
+              chevronSVG +
+            '</div>' +
+          '</div>' +
+          '<div class="card-detail">' +
+            '<div class="card-detail-inner">' +
+              '<div class="card-detail-text">' + escapeHtml(r.detail || '') + '</div>' +
+              (r.useCase ? '<div class="card-use-case"><strong>Best for:</strong> ' + escapeHtml(r.useCase) + '</div>' : '') +
+              '<div class="card-spawn-form" onclick="event.stopPropagation()">' +
+                '<div class="card-spawn-agents">' +
+                  agentCounterHTML(r.id, 'cc', 'Claude', 'label-claude', r.cc) +
+                  agentCounterHTML(r.id, 'cod', 'Codex', 'label-codex', r.cod) +
+                  agentCounterHTML(r.id, 'gmi', 'Gemini', 'label-gemini', r.gmi) +
+                '</div>' +
+                '<div class="card-spawn-row">' +
+                  '<input type="text" placeholder="Session name..." id="rname-' + r.id + '">' +
+                  '<input type="text" placeholder="Project path..." id="rpath-' + r.id + '">' +
+                '</div>' +
+                '<textarea class="card-spawn-textarea" placeholder="Initial prompt (optional)..." id="rprompt-' + r.id + '"></textarea>' +
+                '<div class="card-spawn-row">' +
+                  '<button class="btn btn-create btn-sm" onclick="spawnRecipe(\\'' + r.id + '\\')">Spawn</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
           '</div>';
         grid.appendChild(div);
       });
     }
 
-    // ---- Render template cards ----
     function renderTemplates() {
       var grid = document.getElementById('templateGrid');
       grid.innerHTML = '';
       TEMPLATES.forEach(function(t) {
+        var rolesHTML = '';
+        if (t.roles && t.roles.length > 0) {
+          rolesHTML = '<div class="card-roles"><div class="card-roles-label">Agent Roles</div>';
+          t.roles.forEach(function(role) {
+            rolesHTML +=
+              '<div class="card-role">' +
+                '<span class="card-role-name">' + escapeHtml(role.name) + '</span>' +
+                '<span class="card-role-agent ' + roleAgentClass(role.agent) + '">' + escapeHtml(role.agent) + '</span>' +
+                '<span class="card-role-desc">' + escapeHtml(role.desc) + '</span>' +
+              '</div>';
+          });
+          rolesHTML += '</div>';
+        }
+        var agentsObj = t.agents || {};
+        var totalAgents = (agentsObj.cc || 0) + (agentsObj.cod || 0) + (agentsObj.gmi || 0);
+
         var div = document.createElement('div');
         div.className = 'card';
+        div.id = 'template-' + t.id;
         div.innerHTML =
-          '<div class="card-name">' + escapeHtml(t.name) + '</div>' +
-          '<div class="card-pattern">' + escapeHtml(t.pattern) + '</div>' +
-          '<div class="card-desc">' + escapeHtml(t.desc) + '</div>' +
-          '<div class="card-footer">' +
-            '<input type="text" placeholder="' + escapeHtml(t.id) + '-..." id="tname-' + t.id + '">' +
-            '<button class="btn btn-create btn-sm" onclick="spawnTemplate(\\'' + t.id + '\\')">Spawn</button>' +
+          '<div class="card-summary" onclick="toggleCard(\\'template-' + t.id + '\\')">' +
+            '<div class="card-summary-top">' +
+              '<div class="card-summary-left">' +
+                '<div class="card-name">' + escapeHtml(t.name) + '</div>' +
+                '<div class="card-pattern">' + escapeHtml(t.pattern) + '</div>' +
+                '<div class="card-desc">' + escapeHtml(t.desc) + '</div>' +
+                '<div class="card-agents">' + agentPillsHTML(agentsObj.cc || 0, agentsObj.cod || 0, agentsObj.gmi || 0) +
+                  '<span class="card-agent-count">' + totalAgents + ' agent' + (totalAgents !== 1 ? 's' : '') + '</span>' +
+                '</div>' +
+              '</div>' +
+              chevronSVG +
+            '</div>' +
+          '</div>' +
+          '<div class="card-detail">' +
+            '<div class="card-detail-inner">' +
+              '<div class="card-detail-text">' + escapeHtml(t.detail || '') + '</div>' +
+              rolesHTML +
+              '<div class="card-spawn-form" onclick="event.stopPropagation()">' +
+                '<div class="card-spawn-row">' +
+                  '<input type="text" placeholder="Session name..." id="tname-' + t.id + '">' +
+                  '<input type="text" placeholder="Project path..." id="tpath-' + t.id + '">' +
+                '</div>' +
+                '<textarea class="card-spawn-textarea" placeholder="Initial prompt (optional)..." id="tprompt-' + t.id + '"></textarea>' +
+                '<div class="card-spawn-row">' +
+                  '<button class="btn btn-create btn-sm" onclick="spawnTemplate(\\'' + t.id + '\\')">Spawn</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
           '</div>';
         grid.appendChild(div);
       });
@@ -1594,14 +1911,29 @@ function dashboardHTML(sessions) {
 
     function spawnRecipe(recipeId) {
       var nameInput = document.getElementById('rname-' + recipeId);
+      var promptInput = document.getElementById('rprompt-' + recipeId);
       var name = (nameInput && nameInput.value.trim()) || genSessionName(recipeId);
-      ntmSpawnRequest({ name: name, recipe: recipeId });
+      var prompt = promptInput ? promptInput.value.trim() : '';
+      var recipe = RECIPES.find(function(r) { return r.id === recipeId; });
+      var counters = recipeCounters[recipeId];
+      var body;
+      if (recipe && counters && (counters.cc !== recipe.cc || counters.cod !== recipe.cod || counters.gmi !== recipe.gmi)) {
+        body = { name: name, cc: counters.cc, cod: counters.cod, gmi: counters.gmi };
+      } else {
+        body = { name: name, recipe: recipeId };
+      }
+      if (prompt) body.prompt = prompt;
+      ntmSpawnRequest(body);
     }
 
     function spawnTemplate(templateId) {
       var nameInput = document.getElementById('tname-' + templateId);
+      var promptInput = document.getElementById('tprompt-' + templateId);
       var name = (nameInput && nameInput.value.trim()) || genSessionName(templateId);
-      ntmSpawnRequest({ name: name, template: templateId });
+      var prompt = promptInput ? promptInput.value.trim() : '';
+      var body = { name: name, template: templateId };
+      if (prompt) body.prompt = prompt;
+      ntmSpawnRequest(body);
     }
 
     function spawnCustom() {
