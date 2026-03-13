@@ -32,7 +32,13 @@ fi
 # Copy stdin to clipboard via OSC 52
 data=$(base64 | tr -d '\n')
 if [ -n "$TMUX" ]; then
-    printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data"
+    osc52=$(printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data")
+    pane_tty=$(tmux display-message -p '#{pane_tty}' 2>/dev/null)
+    if [ -n "$pane_tty" ] && [ -w "$pane_tty" ]; then
+        printf '%s' "$osc52" > "$pane_tty"
+    else
+        printf '%s' "$osc52"
+    fi
 else
     printf '\e]52;c;%s\a' "$data"
 fi

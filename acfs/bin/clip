@@ -5,7 +5,10 @@
 #        clip -o                   (paste — prints tmux buffer)
 #
 # Works through tmux → ttyd → browser Clipboard API via OSC 52 escape sequences.
-# Requires: tmux set-clipboard on, allow-passthrough on (both set in ACFS tmux.conf)
+# Requires: tmux set-clipboard external, allow-passthrough on (both set in ACFS tmux.conf)
+#
+# When called from tmux copy-pipe, stdout does NOT reach the terminal — so we
+# write the OSC 52 sequence directly to the pane's TTY device.
 
 if [ "$1" = "-o" ] || [ "$1" = "--paste" ]; then
     tmux save-buffer - 2>/dev/null || echo "No tmux buffer"
@@ -18,9 +21,24 @@ else
     data=$(base64 | tr -d '\n')
 fi
 
-# Detect if we're inside tmux — if so, wrap OSC 52 in tmux passthrough
+# Build the OSC 52 sequence with selection type 'c' (clipboard).
+# xterm.js ClipboardAddon only accepts 'c' — it silently drops 'p' (primary).
 if [ -n "$TMUX" ]; then
-    printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data"
+    osc52=$(printf '\ePtmux;\e\e]52;c;%s\a\e\\' "$data")
 else
-    printf '\e]52;c;%s\a' "$data"
+    osc52=$(printf '\e]52;c;%s\a' "$data")
+fi
+
+# When called from tmux copy-pipe, stdout goes nowhere useful.
+# Write directly to the active pane's TTY so the sequence reaches ttyd → browser.
+if [ -n "$TMUX" ]; then
+    pane_tty=$(tmux display-message -p '#{pane_tty}' 2>/dev/null)
+    if [ -n "$pane_tty" ] && [ -w "$pane_tty" ]; then
+        printf '%s' "$osc52" > "$pane_tty"
+    else
+        # Fallback: try stdout (works when called interactively)
+        printf '%s' "$osc52"
+    fi
+else
+    printf '%s' "$osc52"
 fi
