@@ -19,6 +19,23 @@ import {
   handleEnvStatus,
   handleCassSearch,
   handleCautUsage,
+  handleSecretsStatus,
+  handleSshGenerate,
+  handleSshGithub,
+  handleGitConfig,
+  handleListProjects,
+  handleCloneProject,
+  handleProjectDetail,
+  handleProjectTree,
+  handleProjectStage,
+  handleProjectUnstage,
+  handleProjectStageAll,
+  handleProjectCommit,
+  handleProjectPush,
+  handleProjectPull,
+  handleProjectLog,
+  handleProjectBranches,
+  handleProjectDiff,
 } from "./routes/api.js";
 
 function routeRequest(
@@ -105,6 +122,89 @@ function routeRequest(
   if (url.pathname === "/api/tools/caut" && req.method === "GET") {
     handleCautUsage(req, res);
     return;
+  }
+
+  if (url.pathname === "/api/secrets/status" && req.method === "GET") {
+    handleSecretsStatus(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/secrets/ssh/generate" && req.method === "POST") {
+    handleSshGenerate(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/secrets/ssh/github" && req.method === "POST") {
+    handleSshGithub(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/secrets/git" && req.method === "POST") {
+    handleGitConfig(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/projects" && req.method === "GET") {
+    handleListProjects(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/projects/clone" && req.method === "POST") {
+    handleCloneProject(req, res);
+    return;
+  }
+
+  const projectNameMatch = url.pathname.match(
+    /^\/api\/projects\/([a-zA-Z0-9._-]+)\/(.+)$/
+  );
+  if (projectNameMatch) {
+    const pName = projectNameMatch[1];
+    const action = projectNameMatch[2];
+
+    if (action === "detail" && req.method === "GET") {
+      handleProjectDetail(req, res, pName);
+      return;
+    }
+    if (action === "tree" && req.method === "GET") {
+      handleProjectTree(req, res, pName);
+      return;
+    }
+    if (action === "stage" && req.method === "POST") {
+      handleProjectStage(req, res, pName);
+      return;
+    }
+    if (action === "unstage" && req.method === "POST") {
+      handleProjectUnstage(req, res, pName);
+      return;
+    }
+    if (action === "stage-all" && req.method === "POST") {
+      handleProjectStageAll(req, res, pName);
+      return;
+    }
+    if (action === "commit" && req.method === "POST") {
+      handleProjectCommit(req, res, pName);
+      return;
+    }
+    if (action === "push" && req.method === "POST") {
+      handleProjectPush(req, res, pName);
+      return;
+    }
+    if (action === "pull" && req.method === "POST") {
+      handleProjectPull(req, res, pName);
+      return;
+    }
+    if (action === "log" && req.method === "GET") {
+      handleProjectLog(req, res, pName);
+      return;
+    }
+    if (action === "branches" && req.method === "GET") {
+      handleProjectBranches(req, res, pName);
+      return;
+    }
+    if (action === "diff" && req.method === "GET") {
+      handleProjectDiff(req, res, pName);
+      return;
+    }
   }
 
   const sessionMatch = url.pathname.match(

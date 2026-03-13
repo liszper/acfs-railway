@@ -43,6 +43,18 @@ export function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
   return true;
 }
 
+export function requireJsonContentType(
+  req: IncomingMessage,
+  res: ServerResponse
+): boolean {
+  const ct = req.headers["content-type"] || "";
+  if (!ct.startsWith("application/json")) {
+    jsonResponse(res, 415, { error: "Content-Type must be application/json" });
+    return false;
+  }
+  return true;
+}
+
 export function checkUpgradeAuth(req: IncomingMessage): boolean {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith("Basic ")) return false;

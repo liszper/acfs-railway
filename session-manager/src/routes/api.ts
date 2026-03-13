@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { readBody, jsonResponse } from "../utils/http.js";
+import { readBody, jsonResponse, requireJsonContentType } from "../utils/http.js";
 import { getTmuxSessions, ensureTmuxSession, killSession } from "../services/sessions.js";
 import { startTtydForSession } from "../services/ttyd.js";
 import { ntmSpawn, ntmSend, ntmInterrupt, ntmStatus } from "../services/ntm.js";
@@ -10,7 +10,28 @@ import {
   cassSearch,
   cautUsage,
 } from "../services/tools.js";
-import type { NtmSpawnOpts } from "../types.js";
+import {
+  getSecretsStatus,
+  generateSshKey,
+  uploadSshKeyToGithub,
+  setGitConfig,
+} from "../services/secrets.js";
+import {
+  listProjects,
+  getProjectDetail,
+  getFileTree,
+  cloneRepo,
+  stageFiles,
+  unstageFiles,
+  stageAll,
+  commitChanges,
+  pushChanges,
+  pullChanges,
+  getLog,
+  getBranches,
+  getFileDiff,
+} from "../services/projects.js";
+import type { NtmSpawnOpts, GitConfigInput } from "../types.js";
 
 export function handleListSessions(
   _req: IncomingMessage,
@@ -201,6 +222,298 @@ export function handleCautUsage(
     jsonResponse(res, 200, result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "caut usage failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleSecretsStatus(
+  _req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  try {
+    const status = await getSecretsStatus();
+    jsonResponse(res, 200, status);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "secrets status failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleSshGenerate(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    const body = await readBody(req);
+    const result = await generateSshKey(!!body.force);
+    if ("error" in result) {
+      jsonResponse(res, 400, result);
+    } else {
+      jsonResponse(res, result.created ? 201 : 200, result);
+    }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "ssh key generation failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleSshGithub(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    await readBody(req);
+    const result = await uploadSshKeyToGithub();
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "ssh github upload failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleGitConfig(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    const body = await readBody(req);
+    const input: GitConfigInput = {
+      name: typeof body.name === "string" ? body.name.trim() : undefined,
+      email: typeof body.email === "string" ? body.email.trim() : undefined,
+    };
+    const result = await setGitConfig(input);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "git config failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+// --- Projects handlers ---
+
+export async function handleListProjects(
+  _req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  try {
+    const projects = await listProjects();
+    jsonResponse(res, 200, projects);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "failed to list projects";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleCloneProject(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    const body = await readBody(req);
+    const url = typeof body.url === "string" ? body.url.trim() : "";
+    const name = typeof body.name === "string" ? body.name.trim() : undefined;
+    if (!url) {
+      jsonResponse(res, 400, { error: "url is required" });
+      return;
+    }
+    const result = await cloneRepo(url, name);
+    jsonResponse(res, result.ok ? 201 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "clone failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectDetail(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  try {
+    const result = await getProjectDetail(name);
+    const status = "error" in result ? 400 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "failed to get project detail";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectTree(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    const subPath = url.searchParams.get("path") || undefined;
+    const result = await getFileTree(name, subPath);
+    const status = "error" in result ? 400 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "failed to get file tree";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectStage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    const body = await readBody(req);
+    const files = Array.isArray(body.files) ? body.files : [];
+    const result = await stageFiles(name, files);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "stage failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectUnstage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    const body = await readBody(req);
+    const files = Array.isArray(body.files) ? body.files : [];
+    const result = await unstageFiles(name, files);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "unstage failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectStageAll(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    await readBody(req);
+    const result = await stageAll(name);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "stage all failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectCommit(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    const body = await readBody(req);
+    const message = typeof body.message === "string" ? body.message.trim() : "";
+    if (!message) {
+      jsonResponse(res, 400, { error: "message is required" });
+      return;
+    }
+    const result = await commitChanges(name, message);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "commit failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectPush(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    await readBody(req);
+    const result = await pushChanges(name);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "push failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectPull(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  if (!requireJsonContentType(req, res)) return;
+  try {
+    await readBody(req);
+    const result = await pullChanges(name);
+    jsonResponse(res, result.ok ? 200 : 400, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "pull failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectLog(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    const limitStr = url.searchParams.get("limit");
+    const limit = limitStr ? parseInt(limitStr, 10) : 10;
+    const result = await getLog(name, limit);
+    const status = "error" in result ? 400 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "log failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectBranches(
+  _req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  try {
+    const result = await getBranches(name);
+    const status = "error" in result ? 400 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "branches failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export async function handleProjectDiff(
+  req: IncomingMessage,
+  res: ServerResponse,
+  name: string
+): Promise<void> {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    const file = url.searchParams.get("file") || "";
+    const staged = url.searchParams.get("staged") === "true";
+    if (!file) {
+      jsonResponse(res, 400, { error: "file parameter required" });
+      return;
+    }
+    const result = await getFileDiff(name, file, staged);
+    const status = "error" in result ? 400 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "diff failed";
     jsonResponse(res, 500, { error: msg });
   }
 }

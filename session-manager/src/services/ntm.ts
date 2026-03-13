@@ -36,6 +36,9 @@ export function ntmSpawn(name: string, opts: NtmSpawnOpts): NtmResult {
     if (opts.cod) args += ` --cod=${parseInt(String(opts.cod))}`;
     if (opts.gmi) args += ` --gmi=${parseInt(String(opts.gmi))}`;
   }
+  if (opts.projectPath) {
+    args += ` -p ${shellEscape(opts.projectPath)}`;
+  }
   if (opts.prompt) {
     args += ` --prompt=${shellEscape(opts.prompt)}`;
   }

@@ -41,6 +41,8 @@ ${getStyles()}
       <button class="spawn-tab" data-tab="templates" onclick="switchTab('templates')">Workflows</button>
       <button class="spawn-tab" data-tab="custom" onclick="switchTab('custom')">Custom</button>
       <button class="spawn-tab" data-tab="tools" onclick="switchTab('tools')">Tools</button>
+      <button class="spawn-tab" data-tab="secrets" onclick="switchTab('secrets')">Secrets</button>
+      <button class="spawn-tab" data-tab="projects" onclick="switchTab('projects')">Projects</button>
     </div>
     <div class="spawn-body">
 
@@ -135,6 +137,23 @@ ${getStyles()}
               <button class="btn btn-sm" onclick="fetchCAUT()" style="font-size:0.65rem;padding:0.2rem 0.5rem">Refresh</button>
             </div>
             <div class="results-list" id="cautResults"><span style="color:#484f58;font-size:0.75rem;padding:0.25rem">Click Refresh to load usage</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="spawn-pane" id="pane-secrets">
+        <div id="secretsContent"><span style="color:#8b949e;font-size:0.75rem">Switch to this tab to load secrets status</span></div>
+      </div>
+
+      <div class="spawn-pane" id="pane-projects">
+        <div id="projectsContent"><span style="color:#8b949e;font-size:0.75rem">Switch to this tab to load projects</span></div>
+        <div class="diff-overlay" id="diffOverlay" onclick="if(event.target===this)closeDiffOverlay()">
+          <div class="diff-modal">
+            <div class="diff-modal-header">
+              <span id="diffFileName">Diff</span>
+              <button class="diff-modal-close" onclick="closeDiffOverlay()">&times;</button>
+            </div>
+            <div class="diff-modal-body"><pre id="diffContent"></pre></div>
           </div>
         </div>
       </div>

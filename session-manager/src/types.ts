@@ -39,6 +39,7 @@ export interface NtmSpawnOpts {
   cod?: number;
   gmi?: number;
   prompt?: string;
+  projectPath?: string;
 }
 
 export interface NtmResult {
@@ -93,6 +94,136 @@ export interface WorkflowTemplate {
   detail: string;
   roles: RecipeRole[];
   agents: { cc: number; cod: number; gmi: number };
+}
+
+export interface CliAuthInfo {
+  configured: boolean;
+  authenticated: boolean;
+  user?: string;
+}
+
+export interface SshKeyInfo {
+  hasPrivateKey: boolean;
+  hasPublicKey: boolean;
+  publicKey: string | null;
+  fingerprint: string | null;
+  source: "environment" | "generated" | "none";
+}
+
+export interface SecretsStatus {
+  aiKeys: {
+    anthropic: boolean;
+    openai: boolean;
+    gemini: boolean;
+  };
+  github: {
+    token: boolean;
+    sshKey: boolean;
+    gitName: string | null;
+    gitEmail: string | null;
+  };
+  cloudCLIs: {
+    railway: CliAuthInfo;
+    vercel: CliAuthInfo;
+    supabase: CliAuthInfo;
+    cloudflare: CliAuthInfo;
+    vault: { configured: boolean };
+  };
+  ssh: SshKeyInfo;
+  terminal: {
+    user: string;
+    passwordDefault: boolean;
+  };
+  container: {
+    user: string;
+    hostname: string;
+  };
+  dotfiles: {
+    repo: string | null;
+    loaded: boolean;
+  };
+  webhooks: {
+    url: boolean;
+    secret: boolean;
+  };
+  agentLimits: {
+    memLimit: string | null;
+    nproc: string | null;
+  };
+  opencode: Record<string, string>;
+  cliAuthCacheAge: number | null;
+}
+
+export interface GitConfigInput {
+  name?: string;
+  email?: string;
+}
+
+export interface SshGenerateResult {
+  publicKey: string;
+  fingerprint: string;
+  created: boolean;
+}
+
+export interface FileChange {
+  path: string;
+  status: "M" | "A" | "D" | "R" | "C" | "U" | "??";
+}
+
+export interface GitStatus {
+  branch: string | null;
+  remote: string | null;
+  ahead: number;
+  behind: number;
+  staged: FileChange[];
+  modified: FileChange[];
+  untracked: string[];
+  conflicts: string[];
+  clean: boolean;
+}
+
+export interface CommitInfo {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface ProjectInfo {
+  name: string;
+  path: string;
+  isGitRepo: boolean;
+  branch: string | null;
+  remote: string | null;
+  remoteUrl: string | null;
+  ahead: number;
+  behind: number;
+  staged: number;
+  modified: number;
+  untracked: number;
+  clean: boolean;
+  lastCommit: CommitInfo | null;
+}
+
+export interface FileTreeEntry {
+  name: string;
+  path: string;
+  isDir: boolean;
+  gitStatus?: string;
+}
+
+export interface ProjectDetail {
+  info: ProjectInfo;
+  status: GitStatus;
+}
+
+export interface GitLogEntry {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  date: string;
 }
 
 export type RequestHandler = (
