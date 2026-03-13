@@ -412,6 +412,38 @@ RUN cp /opt/acfs-repo/acfs/zsh/p10k.zsh /home/dev/.p10k.zsh 2>/dev/null || true
 RUN mkdir -p /home/dev/.config/ntm \
     && cp /opt/acfs-repo/acfs/ntm/config.toml /home/dev/.config/ntm/config.toml 2>/dev/null || true
 
+# bat config (theme, pager, syntax mappings)
+RUN mkdir -p /home/dev/.config/bat \
+    && cp /opt/acfs-repo/acfs/bat/config /home/dev/.config/bat/config 2>/dev/null || true
+
+# atuin config (local-only, no sync, fuzzy search)
+RUN mkdir -p /home/dev/.config/atuin /home/dev/.local/share/atuin \
+    && cp /opt/acfs-repo/acfs/atuin/config.toml /home/dev/.config/atuin/config.toml 2>/dev/null || true
+
+# lazygit config (delta as pager)
+RUN mkdir -p /home/dev/.config/lazygit \
+    && cp /opt/acfs-repo/acfs/lazygit/config.yml /home/dev/.config/lazygit/config.yml 2>/dev/null || true
+
+# RANO config (network observer for AI CLIs — persist to /data)
+RUN mkdir -p /home/dev/.config/rano \
+    && cp /opt/acfs-repo/acfs/rano/config.conf /home/dev/.config/rano/config.conf 2>/dev/null || true
+
+# Meta Skill config (skill search, CASS/DCG integration)
+RUN mkdir -p /home/dev/.config/ms \
+    && cp /opt/acfs-repo/acfs/meta-skill/config.toml /home/dev/.config/ms/config.toml 2>/dev/null || true
+
+# CASS config (agent session search — local source paths)
+RUN mkdir -p /home/dev/.config/cass /home/dev/.coding-agent-search \
+    && cp /opt/acfs-repo/acfs/cass/sources.toml /home/dev/.config/cass/sources.toml 2>/dev/null || true
+
+# CAUT config (agent usage tracker — all providers enabled)
+RUN mkdir -p /home/dev/.config/caut \
+    && cp /opt/acfs-repo/acfs/caut/config.toml /home/dev/.config/caut/config.toml 2>/dev/null || true
+
+# RU config (repo updater — /data/projects base, flat layout)
+RUN mkdir -p /home/dev/.config/ru/repos.d /home/dev/.local/state/ru/logs /home/dev/.cache/ru \
+    && cp /opt/acfs-repo/acfs/ru/config /home/dev/.config/ru/config 2>/dev/null || true
+
 # acfs-update: update tools in-place without image rebuild
 RUN cp /opt/acfs-repo/acfs/bin/acfs-update /usr/local/bin/acfs-update \
     && chmod +x /usr/local/bin/acfs-update 2>/dev/null || true
@@ -513,6 +545,15 @@ fi
 # Git credential caching for HTTPS repos
 su - "$TARGET_USER" -c "git config --global credential.helper store" 2>/dev/null || true
 
+# Git + delta integration (makes git diff/log/show use delta as pager)
+if command -v delta &>/dev/null; then
+    su - "$TARGET_USER" -c "git config --global core.pager delta"
+    su - "$TARGET_USER" -c "git config --global interactive.diffFilter 'delta --color-only'"
+    su - "$TARGET_USER" -c "git config --global delta.navigate true"
+    su - "$TARGET_USER" -c "git config --global merge.conflictStyle zdiff3"
+    su - "$TARGET_USER" -c "git config --global diff.colorMoved default"
+fi
+
 # GitHub CLI auth (enables agents to create PRs, manage issues)
 if [ -n "${GH_TOKEN:-}" ]; then
     su - "$TARGET_USER" -c "echo '${GH_TOKEN}' | gh auth login --with-token" 2>/dev/null \
@@ -565,9 +606,9 @@ if [ ! -f "$TARGET_HOME/.config/opencode/opencode.json" ] || ! grep -q "oh-my-op
         --opencode-go=${OMO_OPENCODE_GO:-no}" 2>/dev/null || echo "oh-my-opencode: install skipped"
 fi
 
-# Create persistent mailbox directory for MCP Agent Mail
-mkdir -p /data/mcp-agent-mail/mailbox
-chown "$TARGET_USER:$(id -gn "$TARGET_USER")" /data/mcp-agent-mail /data/mcp-agent-mail/mailbox 2>/dev/null || true
+# Create persistent directories for MCP Agent Mail and RANO
+mkdir -p /data/mcp-agent-mail/mailbox /data/rano/logs
+chown "$TARGET_USER:$(id -gn "$TARGET_USER")" /data/mcp-agent-mail /data/mcp-agent-mail/mailbox /data/rano /data/rano/logs 2>/dev/null || true
 
 # Seed AGENTS.md into workspace if not present (multi-agent instructions)
 if [ ! -f /data/projects/AGENTS.md ]; then

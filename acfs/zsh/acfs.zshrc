@@ -198,6 +198,8 @@ add-zsh-hook chpwd _acfs_ls_after_cd
 
 # --- Tool settings ---
 export UV_LINK_MODE=copy
+export BAT_CONFIG_PATH="$HOME/.config/bat/config"
+export MANPAGER="bat -plman"
 
 # Cargo env (if present)
 [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
@@ -218,9 +220,43 @@ command -v zoxide &>/dev/null && eval "$(zoxide init zsh)"
 # direnv
 command -v direnv &>/dev/null && eval "$(direnv hook zsh)"
 
-# fzf integration (optional)
-export FZF_DISABLE_KEYBINDINGS=1
-[[ -f "$HOME/.fzf.zsh" ]] && source "$HOME/.fzf.zsh"
+# fzf integration (fd for files, bat for preview)
+if command -v fzf &>/dev/null; then
+  source <(fzf --zsh 2>/dev/null) || [[ -f "$HOME/.fzf.zsh" ]] && source "$HOME/.fzf.zsh"
+
+  export FZF_DEFAULT_COMMAND='fd --type f --strip-cwd-prefix --hidden --follow --exclude .git'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+  export FZF_ALT_C_COMMAND='fd --type d --strip-cwd-prefix --hidden --follow --exclude .git'
+
+  export FZF_DEFAULT_OPTS="
+    --height=40%
+    --layout=reverse
+    --border=rounded
+    --info=inline
+    --color=dark
+    --color=fg:#cdd6f4,fg+:#cba6f7,bg:#1e1e2e,bg+:#313244
+    --color=hl:#89b4fa,hl+:#89dceb,info:#cba6f7,prompt:#cba6f7
+    --color=pointer:#f38ba8,marker:#a6e3a1,spinner:#f5c2e7,header:#89b4fa
+    --color=border:#45475a
+    --bind='ctrl-/:change-preview-window(down|hidden|)'
+    --bind='ctrl-u:preview-page-up'
+    --bind='ctrl-d:preview-page-down'
+  "
+
+  export FZF_CTRL_T_OPTS="
+    --walker-skip .git,node_modules,target,.cache
+    --preview 'bat --color=always --style=numbers --line-range=:300 {}'
+    --preview-window=right:60%:wrap
+  "
+
+  export FZF_ALT_C_OPTS="
+    --walker-skip .git,node_modules,target,.cache
+    --preview 'eza --tree --color=always {} | head -100'
+  "
+
+  _fzf_compgen_path() { fd --hidden --follow --exclude ".git" . "$1"; }
+  _fzf_compgen_dir() { fd --type d --hidden --follow --exclude ".git" . "$1"; }
+fi
 
 # --- Prompt config ---
 if [[ "$TERM_PROGRAM" == "vscode" ]]; then

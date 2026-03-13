@@ -1,0 +1,4 @@
+[[sources]]
+name = "local"
+type = "local"
+paths = ["~/.claude/projects", "~/.codex", "~/.gemini", "~/.config/opencode"]

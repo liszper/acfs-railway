@@ -14,6 +14,7 @@
 const http = require("http");
 const { execSync, spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
 
 const PORT = parseInt(process.env.PORT || "7681");
 const TTYD_USER = process.env.TTYD_USER || "admin";
@@ -71,6 +72,89 @@ function isNtmAvailable() {
   }
   ntmAvailableCacheTime = now;
   return ntmAvailableCache;
+}
+
+// ---------------------------------------------------------------------------
+// Tool inventory — batch check and cache for 60 seconds
+// ---------------------------------------------------------------------------
+const TOOL_LIST = [
+  'claude', 'codex', 'gemini', 'opencode', 'ntm', 'cass', 'br', 'bv', 'dcg', 'slb',
+  'ubs', 'cm', 'sg', 'rg', 'bat', 'fd', 'eza', 'delta', 'fzf', 'zoxide',
+  'lazygit', 'atuin', 'pt', 'rano', 'caut', 'ms', 'apr', 'ru', 'jfp', 's2p',
+  'brenner', 'giil', 'csctf', 'mdwb', 'aadc', 'toon', 'am', 'gh', 'railway',
+  'wrangler', 'supabase', 'vercel', 'vault', 'code-server', 'gopls', 'pyright', 'rust-analyzer'
+];
+
+let toolStatusResult = null;
+let toolStatusTime = 0;
+let lastCpuReading = null;
+
+function getToolStatus() {
+  const now = Date.now();
+  if (toolStatusResult !== null && now - toolStatusTime < 60000) {
+    return toolStatusResult;
+  }
+  const result = {};
+  try {
+    const checks = TOOL_LIST.map(t => `command -v ${t} >/dev/null 2>&1 && echo "${t}:1" || echo "${t}:0"`).join('; ');
+    const output = execSync(`su - ${ACFS_USER} -c ${shellEscape(checks)}`, {
+      encoding: 'utf8',
+      timeout: 15000
+    });
+    output.trim().split('\n').forEach(line => {
+      const parts = line.trim().split(':');
+      if (parts[0]) result[parts[0]] = parts[1] === '1';
+    });
+  } catch {
+    TOOL_LIST.forEach(t => { result[t] = false; });
+  }
+  toolStatusResult = result;
+  toolStatusTime = now;
+  return result;
+}
+
+function getSystemStats() {
+  const stats = { cpu: null, memUsed: null, memTotal: null, diskUsed: null, diskTotal: null };
+  try {
+    const meminfo = fs.readFileSync('/proc/meminfo', 'utf8');
+    const memTotalKB = parseInt((meminfo.match(/MemTotal:\s+(\d+)/) || [])[1] || '0');
+    const memAvailKB = parseInt((meminfo.match(/MemAvailable:\s+(\d+)/) || [])[1] || '0');
+    stats.memTotal = memTotalKB * 1024;
+    stats.memUsed = (memTotalKB - memAvailKB) * 1024;
+  } catch {}
+  try {
+    const stat = fs.readFileSync('/proc/stat', 'utf8');
+    const parts = stat.split('\n')[0].trim().split(/\s+/).slice(1).map(Number);
+    const idle = parts[3] + (parts[4] || 0);
+    const total = parts.reduce((a, b) => a + b, 0);
+    if (lastCpuReading) {
+      const idleDelta = idle - lastCpuReading.idle;
+      const totalDelta = total - lastCpuReading.total;
+      if (totalDelta > 0) stats.cpu = (1 - idleDelta / totalDelta) * 100;
+    }
+    lastCpuReading = { idle, total };
+  } catch {}
+  try {
+    const df = execSync('df -B1 /data 2>/dev/null || df -B1 / 2>/dev/null', {
+      encoding: 'utf8', timeout: 3000
+    });
+    const lines = df.trim().split('\n');
+    if (lines.length >= 2) {
+      const cols = lines[1].trim().split(/\s+/);
+      stats.diskTotal = parseInt(cols[1]) || null;
+      stats.diskUsed = parseInt(cols[2]) || null;
+    }
+  } catch {}
+  return stats;
+}
+
+function getEnvStatus() {
+  return {
+    ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+    GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+    GH_TOKEN: !!process.env.GH_TOKEN
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -917,6 +1001,139 @@ function dashboardHTML(sessions) {
   }
   .toast.error { border-color: #f85149; color: #f85149; }
   .toast.success { border-color: #3fb950; color: #3fb950; }
+
+  /* ---- Tools tab ---- */
+  .tool-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+  .tool-pill {
+    font-size: 0.65rem;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    border: 1px solid;
+    transition: opacity 0.15s ease;
+  }
+  .tool-pill.installed {
+    background: rgba(63, 185, 80, 0.1);
+    color: #3fb950;
+    border-color: rgba(63, 185, 80, 0.3);
+  }
+  .tool-pill.missing {
+    background: rgba(248, 81, 73, 0.06);
+    color: #f85149;
+    border-color: rgba(248, 81, 73, 0.2);
+    opacity: 0.7;
+  }
+  .tools-section {
+    margin-bottom: 1.25rem;
+  }
+  .tools-section:last-child { margin-bottom: 0; }
+  .tools-section-header {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .tools-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .tools-row:last-child { margin-bottom: 0; }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+  .stat-card {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 0.65rem;
+    text-align: center;
+  }
+  .stat-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #58a6ff;
+  }
+  .stat-label {
+    font-size: 0.65rem;
+    color: #8b949e;
+    margin-top: 0.2rem;
+  }
+  .env-grid {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .env-item {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+  }
+  .env-item.configured { color: #3fb950; }
+  .env-item.missing { color: #f85149; opacity: 0.8; }
+  .env-icon { font-weight: 700; margin-right: 0.15rem; }
+  .search-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .search-row input {
+    flex: 1;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 0.4rem 0.65rem;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    outline: none;
+  }
+  .search-row input:focus { border-color: #58a6ff; }
+  .search-row input::placeholder { color: #484f58; }
+  .results-list {
+    max-height: 200px;
+    min-height: 48px;
+    overflow-y: auto;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 0.35rem;
+  }
+  .result-item {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid #21262d;
+  }
+  .result-item:last-child { border-bottom: none; }
+  .result-title {
+    font-size: 0.78rem;
+    color: #f0f6fc;
+    font-weight: 500;
+  }
+  .result-snippet {
+    font-size: 0.7rem;
+    color: #8b949e;
+    margin-top: 0.1rem;
+    line-height: 1.35;
+  }
+  @media (max-width: 768px) {
+    .tools-row { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(3, 1fr); }
+  }
 </style>
 </head>
 <body>
@@ -936,6 +1153,7 @@ function dashboardHTML(sessions) {
       <button class="spawn-tab" data-tab="recipes" onclick="switchTab('recipes')">Recipes</button>
       <button class="spawn-tab" data-tab="templates" onclick="switchTab('templates')">Workflows</button>
       <button class="spawn-tab" data-tab="custom" onclick="switchTab('custom')">Custom</button>
+      <button class="spawn-tab" data-tab="tools" onclick="switchTab('tools')">Tools</button>
     </div>
     <div class="spawn-body">
 
@@ -997,6 +1215,48 @@ function dashboardHTML(sessions) {
         </div>
       </div>
 
+      <!-- Tab 5: Tools -->
+      <div class="spawn-pane" id="pane-tools">
+        <div class="tools-section">
+          <div class="tools-section-header">
+            <span>Tool Inventory</span>
+            <button class="btn btn-sm" onclick="refreshToolStatus()" style="font-size:0.65rem;padding:0.2rem 0.5rem">Refresh</button>
+          </div>
+          <div class="tool-grid" id="toolGrid"><span style="color:#8b949e;font-size:0.75rem">Switch to this tab to load tool status</span></div>
+        </div>
+        <div class="tools-row">
+          <div class="tools-section">
+            <div class="tools-section-header">System Stats</div>
+            <div class="stats-grid" id="statsGrid">
+              <div class="stat-card"><div class="stat-value">--</div><div class="stat-label">CPU</div></div>
+              <div class="stat-card"><div class="stat-value">--</div><div class="stat-label">Memory</div></div>
+              <div class="stat-card"><div class="stat-value">--</div><div class="stat-label">Disk</div></div>
+            </div>
+          </div>
+          <div class="tools-section">
+            <div class="tools-section-header">Environment</div>
+            <div class="env-grid" id="envGrid"><span style="color:#8b949e;font-size:0.75rem">Loading...</span></div>
+          </div>
+        </div>
+        <div class="tools-row">
+          <div class="tools-section">
+            <div class="tools-section-header">CASS Search</div>
+            <div class="search-row">
+              <input type="text" id="cassQuery" placeholder="Search snippets..." onkeydown="if(event.key==='Enter')searchCASS()">
+              <button class="btn btn-create btn-sm" onclick="searchCASS()">Search</button>
+            </div>
+            <div class="results-list" id="cassResults"><span style="color:#484f58;font-size:0.75rem;padding:0.25rem">Enter a query to search CASS</span></div>
+          </div>
+          <div class="tools-section">
+            <div class="tools-section-header">
+              <span>CAUT Usage</span>
+              <button class="btn btn-sm" onclick="fetchCAUT()" style="font-size:0.65rem;padding:0.2rem 0.5rem">Refresh</button>
+            </div>
+            <div class="results-list" id="cautResults"><span style="color:#484f58;font-size:0.75rem;padding:0.25rem">Click Refresh to load usage</span></div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1011,6 +1271,8 @@ function dashboardHTML(sessions) {
     var currentSessions = ${JSON.stringify(sessions)};
     var pollFailures = 0;
     var customCounts = { cc: 1, cod: 0, gmi: 0 };
+    var toolsTabLoaded = false;
+    var sysStatsTimer = null;
 
     var RECIPES = ${recipesJSON};
     var TEMPLATES = ${templatesJSON};
@@ -1038,6 +1300,10 @@ function dashboardHTML(sessions) {
       }
       for (var j = 0; j < panes.length; j++) {
         panes[j].classList.toggle('active', panes[j].id === 'pane-' + id);
+      }
+      if (id === 'tools' && !toolsTabLoaded) {
+        toolsTabLoaded = true;
+        initToolsTab();
       }
     }
 
@@ -1393,6 +1659,199 @@ function dashboardHTML(sessions) {
       }
     }
 
+    // ---- Tools tab ----
+    async function refreshToolStatus() {
+      var grid = document.getElementById('toolGrid');
+      if (!grid) return;
+      grid.innerHTML = '<span style="color:#8b949e;font-size:0.75rem">Checking tools...</span>';
+      try {
+        var res = await fetch('/api/tools/status');
+        var data = await res.json();
+        renderToolGrid(data);
+      } catch(e) {
+        grid.innerHTML = '<span style="color:#f85149;font-size:0.75rem">Failed to load tool status</span>';
+      }
+    }
+
+    function renderToolGrid(data) {
+      var grid = document.getElementById('toolGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      var tools = Object.keys(data).sort(function(a, b) {
+        if (data[a] !== data[b]) return data[b] ? 1 : -1;
+        return a.localeCompare(b);
+      });
+      tools.forEach(function(t) {
+        var pill = document.createElement('span');
+        pill.className = 'tool-pill ' + (data[t] ? 'installed' : 'missing');
+        pill.textContent = t;
+        pill.title = data[t] ? 'Installed' : 'Not found';
+        grid.appendChild(pill);
+      });
+    }
+
+    function fmtBytes(b) {
+      if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB';
+      if (b >= 1048576) return (b / 1048576).toFixed(0) + ' MB';
+      return (b / 1024).toFixed(0) + ' KB';
+    }
+
+    async function fetchSystemStats() {
+      try {
+        var res = await fetch('/api/tools/system');
+        var data = await res.json();
+        renderSystemStats(data);
+      } catch(e) {}
+    }
+
+    function renderSystemStats(data) {
+      var grid = document.getElementById('statsGrid');
+      if (!grid) return;
+      var cpuPct = data.cpu != null ? data.cpu.toFixed(1) + '%' : '--';
+      var memUsed = data.memUsed != null ? fmtBytes(data.memUsed) : '?';
+      var memTotal = data.memTotal != null ? fmtBytes(data.memTotal) : '?';
+      var memPct = (data.memUsed && data.memTotal) ? ((data.memUsed / data.memTotal) * 100).toFixed(1) + '%' : '--';
+      var diskUsed = data.diskUsed != null ? fmtBytes(data.diskUsed) : '?';
+      var diskTotal = data.diskTotal != null ? fmtBytes(data.diskTotal) : '?';
+      var diskPct = (data.diskUsed && data.diskTotal) ? ((data.diskUsed / data.diskTotal) * 100).toFixed(1) + '%' : '--';
+      grid.innerHTML =
+        '<div class="stat-card"><div class="stat-value">' + cpuPct + '</div><div class="stat-label">CPU Usage</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + memPct + '</div><div class="stat-label">Memory ' + memUsed + ' / ' + memTotal + '</div></div>' +
+        '<div class="stat-card"><div class="stat-value">' + diskPct + '</div><div class="stat-label">Disk ' + diskUsed + ' / ' + diskTotal + '</div></div>';
+    }
+
+    async function fetchEnvStatus() {
+      try {
+        var res = await fetch('/api/tools/env');
+        var data = await res.json();
+        renderEnvStatus(data);
+      } catch(e) {}
+    }
+
+    function renderEnvStatus(data) {
+      var grid = document.getElementById('envGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+      var labels = { ANTHROPIC_API_KEY: 'Anthropic', OPENAI_API_KEY: 'OpenAI', GEMINI_API_KEY: 'Gemini', GH_TOKEN: 'GitHub' };
+      Object.keys(data).forEach(function(key) {
+        var item = document.createElement('div');
+        item.className = 'env-item ' + (data[key] ? 'configured' : 'missing');
+        item.innerHTML = '<span class="env-icon">' + (data[key] ? '\\u2713' : '\\u2717') + '</span> ' + escapeHtml(labels[key] || key);
+        grid.appendChild(item);
+      });
+    }
+
+    async function searchCASS() {
+      var input = document.getElementById('cassQuery');
+      var results = document.getElementById('cassResults');
+      if (!input || !results) return;
+      var query = input.value.trim();
+      if (!query) return showToast('Enter a search query', 'error');
+      results.innerHTML = '<div style="color:#8b949e;padding:0.5rem;font-size:0.75rem">Searching...</div>';
+      try {
+        var res = await fetch('/api/tools/cass', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+        var data = await res.json();
+        if (data.error) {
+          results.innerHTML = '<div style="color:#f85149;padding:0.5rem;font-size:0.75rem">' + escapeHtml(data.error) + '</div>';
+        } else {
+          renderCassResults(data);
+        }
+      } catch(e) {
+        results.innerHTML = '<div style="color:#f85149;padding:0.5rem;font-size:0.75rem">Search failed</div>';
+      }
+    }
+
+    function renderCassResults(data) {
+      var results = document.getElementById('cassResults');
+      if (!results) return;
+      var items = Array.isArray(data) ? data : (data.results || data.snippets || []);
+      if (items.length === 0 && data.raw) {
+        results.innerHTML = '<pre style="color:#c9d1d9;font-size:0.7rem;white-space:pre-wrap;margin:0">' + escapeHtml(data.raw) + '</pre>';
+        return;
+      }
+      if (items.length === 0) {
+        results.innerHTML = '<div style="color:#8b949e;padding:0.5rem;font-size:0.75rem">No results found</div>';
+        return;
+      }
+      results.innerHTML = '';
+      items.slice(0, 50).forEach(function(item) {
+        var div = document.createElement('div');
+        div.className = 'result-item';
+        var title = item.title || item.name || item.path || item.id || '';
+        var snippet = item.snippet || item.content || item.description || '';
+        if (!title && !snippet) title = JSON.stringify(item).substring(0, 100);
+        div.innerHTML = (title ? '<div class="result-title">' + escapeHtml(String(title)) + '</div>' : '') +
+          (snippet ? '<div class="result-snippet">' + escapeHtml(String(snippet).substring(0, 300)) + '</div>' : '');
+        results.appendChild(div);
+      });
+    }
+
+    async function fetchCAUT() {
+      var results = document.getElementById('cautResults');
+      if (!results) return;
+      results.innerHTML = '<div style="color:#8b949e;padding:0.5rem;font-size:0.75rem">Loading usage data...</div>';
+      try {
+        var res = await fetch('/api/tools/caut');
+        var data = await res.json();
+        if (data.error) {
+          results.innerHTML = '<div style="color:#f85149;padding:0.5rem;font-size:0.75rem">' + escapeHtml(data.error) + '</div>';
+        } else {
+          renderCautResults(data);
+        }
+      } catch(e) {
+        results.innerHTML = '<div style="color:#f85149;padding:0.5rem;font-size:0.75rem">Failed to fetch usage</div>';
+      }
+    }
+
+    function renderCautResults(data) {
+      var results = document.getElementById('cautResults');
+      if (!results) return;
+      if (data.raw) {
+        results.innerHTML = '<pre style="color:#c9d1d9;font-size:0.7rem;white-space:pre-wrap;margin:0">' + escapeHtml(data.raw) + '</pre>';
+        return;
+      }
+      results.innerHTML = '';
+      var entries = data.providers || data.usage || data;
+      if (Array.isArray(entries)) {
+        entries.forEach(function(e) {
+          var div = document.createElement('div');
+          div.className = 'result-item';
+          div.innerHTML = '<div class="result-title">' + escapeHtml(e.provider || e.name || 'Provider') + '</div>' +
+            '<div class="result-snippet">' + escapeHtml(String(e.usage || e.tokens || JSON.stringify(e))) + '</div>';
+          results.appendChild(div);
+        });
+      } else if (typeof entries === 'object') {
+        Object.keys(entries).forEach(function(key) {
+          var div = document.createElement('div');
+          div.className = 'result-item';
+          var val = typeof entries[key] === 'object' ? JSON.stringify(entries[key]) : String(entries[key]);
+          div.innerHTML = '<div class="result-title">' + escapeHtml(key) + '</div>' +
+            '<div class="result-snippet">' + escapeHtml(val) + '</div>';
+          results.appendChild(div);
+        });
+      } else {
+        results.innerHTML = '<pre style="color:#c9d1d9;font-size:0.7rem;white-space:pre-wrap;margin:0">' + escapeHtml(JSON.stringify(data, null, 2)) + '</pre>';
+      }
+    }
+
+    function initToolsTab() {
+      refreshToolStatus();
+      fetchSystemStats();
+      fetchEnvStatus();
+      if (!sysStatsTimer) {
+        sysStatsTimer = setInterval(function() {
+          var pane = document.getElementById('pane-tools');
+          if (pane && pane.classList.contains('active')) {
+            fetchSystemStats();
+          }
+        }, 10000);
+      }
+    }
+
     // ---- Init ----
     (function() {
       renderRecipes();
@@ -1624,7 +2083,69 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // code-server runs on its own port (18080) with its own Railway domain
+  // -----------------------------------------------------------------------
+  // Tools API endpoints
+  // -----------------------------------------------------------------------
+
+  if (url.pathname === "/api/tools/status" && req.method === "GET") {
+    jsonResponse(res, 200, getToolStatus());
+    return;
+  }
+
+  if (url.pathname === "/api/tools/system" && req.method === "GET") {
+    jsonResponse(res, 200, getSystemStats());
+    return;
+  }
+
+  if (url.pathname === "/api/tools/env" && req.method === "GET") {
+    jsonResponse(res, 200, getEnvStatus());
+    return;
+  }
+
+  if (url.pathname === "/api/tools/cass" && req.method === "POST") {
+    readBody(req)
+      .then((body) => {
+        const { query } = body;
+        if (!query) {
+          jsonResponse(res, 400, { error: "query is required" });
+          return;
+        }
+        try {
+          const output = execSync(
+            `su - ${ACFS_USER} -c ${shellEscape("cass search --json " + shellEscape(query))}`,
+            { encoding: "utf8", timeout: 15000 }
+          );
+          try {
+            jsonResponse(res, 200, JSON.parse(output.trim()));
+          } catch {
+            jsonResponse(res, 200, { raw: output.trim() });
+          }
+        } catch (e) {
+          jsonResponse(res, 500, { error: e.message || "cass search failed" });
+        }
+      })
+      .catch(() => {
+        jsonResponse(res, 400, { error: "Invalid request body" });
+      });
+    return;
+  }
+
+  if (url.pathname === "/api/tools/caut" && req.method === "GET") {
+    try {
+      const output = execSync(
+        `su - ${ACFS_USER} -c ${shellEscape("caut usage --json")}`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      try {
+        jsonResponse(res, 200, JSON.parse(output.trim()));
+      } catch {
+        jsonResponse(res, 200, { raw: output.trim() });
+      }
+    } catch (e) {
+      jsonResponse(res, 500, { error: e.message || "caut usage failed" });
+    }
+    return;
+  }
 
   // Proxy to ttyd session
   const sessionMatch = url.pathname.match(/^\/s\/([a-zA-Z0-9_-]+)(\/.*)?$/);

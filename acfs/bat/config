@@ -1,0 +1,9 @@
+--theme="TwoDark"
+--style="numbers,changes,header"
+--pager="less -RFX"
+--tabs=2
+--italic-text=never
+--map-syntax="*.env:Bash"
+--map-syntax="*.toml:TOML"
+--map-syntax="Dockerfile*:Dockerfile"
+--map-syntax=".ignore:Git Ignore"

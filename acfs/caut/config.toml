@@ -1,0 +1,17 @@
+[general]
+timeout_seconds = 30
+
+[providers]
+default_providers = ["claude", "codex", "gemini"]
+
+[providers.claude]
+enabled = true
+
+[providers.codex]
+enabled = true
+
+[providers.gemini]
+enabled = true
+
+[output]
+color = true
