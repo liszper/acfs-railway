@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "agent-mail": {
+      "command": "/opt/acfs/mcp-agent-mail/.venv/bin/python",
+      "args": ["-m", "mcp_agent_mail.cli", "serve-stdio"],
+      "env": {
+        "STORAGE_ROOT": "/data/mcp-agent-mail/mailbox",
+        "LLM_ENABLED": "false",
+        "TOOLS_LOG_ENABLED": "false",
+        "LOG_RICH_ENABLED": "false"
+      },
+      "trust": true
+    }
+  }
+}

@@ -118,6 +118,18 @@ RUN npm install -g oh-my-opencode 2>/dev/null || \
     || echo "oh-my-openagent: install skipped"
 
 # ============================================================
+# Phase 5b: LSP servers (powers lsp_diagnostics, lsp_rename, etc.)
+# ============================================================
+RUN npm install -g typescript typescript-language-server 2>/dev/null || echo "ts-lsp: install skipped"
+RUN npm install -g pyright 2>/dev/null || echo "pyright: install skipped"
+RUN GOPATH=/opt/gopath go install golang.org/x/tools/gopls@latest 2>/dev/null \
+    && cp /opt/gopath/bin/gopls /usr/local/bin/ 2>/dev/null \
+    || echo "gopls: install skipped"
+RUN curl -fsSL "https://github.com/rust-lang/rust-analyzer/releases/latest/download/rust-analyzer-x86_64-unknown-linux-gnu.gz" \
+    | gunzip > /usr/local/bin/rust-analyzer && chmod +x /usr/local/bin/rust-analyzer \
+    || echo "rust-analyzer: install skipped"
+
+# ============================================================
 # Phase 6: Cloud CLIs
 # ============================================================
 RUN npm install -g wrangler 2>/dev/null || echo "wrangler: install skipped"
@@ -378,13 +390,15 @@ RUN mkdir -p /home/dev/.claude/hooks \
 RUN mkdir -p /home/dev/.claude \
     && cp /opt/acfs-repo/acfs/claude/settings.json /home/dev/.claude/settings.json 2>/dev/null || true
 
-# Codex CLI global AGENTS.md (same file — Codex reads AGENTS.md natively)
+# Codex CLI global AGENTS.md + MCP config
 RUN mkdir -p /home/dev/.codex \
-    && cp /opt/acfs-repo/acfs/AGENTS.md /home/dev/.codex/AGENTS.md 2>/dev/null || true
+    && cp /opt/acfs-repo/acfs/AGENTS.md /home/dev/.codex/AGENTS.md 2>/dev/null || true \
+    && cp /opt/acfs-repo/acfs/codex/config.toml /home/dev/.codex/config.toml 2>/dev/null || true
 
-# Gemini CLI global instructions
+# Gemini CLI global instructions + MCP config
 RUN mkdir -p /home/dev/.gemini \
-    && cp /opt/acfs-repo/acfs/gemini/GEMINI.md /home/dev/.gemini/GEMINI.md 2>/dev/null || true
+    && cp /opt/acfs-repo/acfs/gemini/GEMINI.md /home/dev/.gemini/GEMINI.md 2>/dev/null || true \
+    && cp /opt/acfs-repo/acfs/gemini/settings.json /home/dev/.gemini/settings.json 2>/dev/null || true
 
 # tmux config optimized for NTM agent workflows
 RUN cp /opt/acfs-repo/acfs/tmux/tmux.conf /home/dev/.tmux.conf 2>/dev/null || true
@@ -393,6 +407,10 @@ RUN cp /opt/acfs-repo/acfs/tmux/tmux.conf /home/dev/.tmux.conf 2>/dev/null || tr
 RUN cp /opt/acfs-repo/acfs/zsh/acfs.zshrc /home/dev/.zshrc 2>/dev/null || true
 # Copy p10k config if available
 RUN cp /opt/acfs-repo/acfs/zsh/p10k.zsh /home/dev/.p10k.zsh 2>/dev/null || true
+
+# acfs-update: update tools in-place without image rebuild
+RUN cp /opt/acfs-repo/acfs/bin/acfs-update /usr/local/bin/acfs-update \
+    && chmod +x /usr/local/bin/acfs-update 2>/dev/null || true
 
 # Ensure dev owns everything
 RUN chown -R dev:dev /home/dev
@@ -482,6 +500,30 @@ if [ -n "${GIT_USER_EMAIL:-}" ]; then
     su - "$TARGET_USER" -c "git config --global user.email '${GIT_USER_EMAIL}'"
 fi
 
+# Git credential caching for HTTPS repos
+su - "$TARGET_USER" -c "git config --global credential.helper store" 2>/dev/null || true
+
+# GitHub CLI auth (enables agents to create PRs, manage issues)
+if [ -n "${GH_TOKEN:-}" ]; then
+    su - "$TARGET_USER" -c "echo '${GH_TOKEN}' | gh auth login --with-token" 2>/dev/null \
+        && echo "GitHub CLI authenticated." \
+        || echo "gh auth: login skipped"
+fi
+
+# Cloud CLI auth tokens
+if [ -n "${RAILWAY_TOKEN:-}" ]; then
+    echo "Railway CLI: token set via RAILWAY_TOKEN env var (auto-detected by CLI)"
+fi
+if [ -n "${VERCEL_TOKEN:-}" ]; then
+    echo "Vercel CLI: token set via VERCEL_TOKEN env var (auto-detected by CLI)"
+fi
+if [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+    echo "Supabase CLI: token set via SUPABASE_ACCESS_TOKEN env var (auto-detected by CLI)"
+fi
+if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+    echo "Wrangler CLI: token set via CLOUDFLARE_API_TOKEN env var (auto-detected by CLI)"
+fi
+
 # Dotfiles repo support (first boot only)
 if [ -n "${DOTFILES_REPO:-}" ] && [ ! -f "$TARGET_HOME/.dotfiles-installed" ]; then
     echo "Installing dotfiles from $DOTFILES_REPO..."
@@ -563,5 +605,10 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 WORKDIR /data/projects
 EXPOSE 7681
 EXPOSE 18080
+
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:7681/ || exit 1
 
 CMD ["/usr/local/bin/entrypoint.sh"]

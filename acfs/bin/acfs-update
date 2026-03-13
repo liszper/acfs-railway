@@ -1,0 +1,59 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "=== ACFS Tool Updater ==="
+echo "Updates tools in-place without rebuilding the Docker image."
+echo ""
+
+update_npm() {
+    local pkg="$1" name="${2:-$1}"
+    echo -n "  $name... "
+    if npm install -g "$pkg" 2>/dev/null | tail -1; then
+        echo "done"
+    else
+        echo "skipped"
+    fi
+}
+
+echo "[AI Agents]"
+update_npm "@anthropic-ai/claude-code" "Claude Code"
+update_npm "@openai/codex" "Codex CLI"
+update_npm "@google/gemini-cli" "Gemini CLI"
+update_npm "oh-my-opencode" "oh-my-opencode"
+
+echo ""
+echo "[LSP Servers]"
+update_npm "typescript" "TypeScript"
+update_npm "typescript-language-server" "TS Language Server"
+update_npm "pyright" "Pyright"
+
+echo ""
+echo "[Cloud CLIs]"
+update_npm "wrangler" "Wrangler"
+update_npm "supabase" "Supabase"
+update_npm "vercel" "Vercel"
+
+echo ""
+echo "[Go tools]"
+for tool in gopls; do
+    echo -n "  $tool... "
+    GOPATH=/opt/gopath go install "golang.org/x/tools/${tool}@latest" 2>/dev/null \
+        && cp "/opt/gopath/bin/$tool" /usr/local/bin/ \
+        && echo "done" \
+        || echo "skipped"
+done
+
+echo ""
+echo "[rust-analyzer]"
+echo -n "  rust-analyzer... "
+if curl -fsSL "https://github.com/rust-lang/rust-analyzer/releases/latest/download/rust-analyzer-x86_64-unknown-linux-gnu.gz" \
+    | gunzip > /tmp/rust-analyzer 2>/dev/null; then
+    mv /tmp/rust-analyzer /usr/local/bin/rust-analyzer
+    chmod +x /usr/local/bin/rust-analyzer
+    echo "done"
+else
+    echo "skipped"
+fi
+
+echo ""
+echo "=== Update complete ==="

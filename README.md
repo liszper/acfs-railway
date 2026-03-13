@@ -12,6 +12,7 @@ A Docker image that packages **50+ developer tools and 3 AI coding agents** into
 
 - **AI Agents** — Claude Code, Codex CLI, Gemini CLI, OpenCode
 - **Languages** — Bun, Node.js, Python (uv), Rust, Go
+- **LSP Servers** — typescript-language-server, pyright, gopls, rust-analyzer (powers agent diagnostics)
 - **Modern CLI** — bat, fd, ripgrep, eza, delta, fzf, zoxide, lazygit, ast-grep, atuin
 - **Shell** — zsh + Oh My Zsh + Powerlevel10k
 - **Cloud CLIs** — Railway, Wrangler, Supabase, Vercel, Vault
@@ -33,6 +34,7 @@ A Docker image that packages **50+ developer tools and 3 AI coding agents** into
 | `ANTHROPIC_API_KEY` | For Claude | Anthropic API key |
 | `OPENAI_API_KEY` | For Codex | OpenAI API key |
 | `GEMINI_API_KEY` | For Gemini | Google AI API key |
+| `GH_TOKEN` | No | GitHub CLI token (enables PRs, issues from agents) |
 | `TTYD_USER` | No | Web terminal username (default: `admin`) |
 | `TTYD_PASS` | No | Web terminal password (default: `changeme`) |
 | `ACFS_USER` | No | Linux username in container (default: `dev`) |
@@ -49,6 +51,10 @@ A Docker image that packages **50+ developer tools and 3 AI coding agents** into
 | `OMO_OPENCODE_ZEN` | No | oh-my-opencode: OpenCode Zen access (`yes`/`no`, default: `no`) |
 | `OMO_ZAI_CODING_PLAN` | No | oh-my-opencode: Z.ai Coding Plan (`yes`/`no`, default: `no`) |
 | `OMO_OPENCODE_GO` | No | oh-my-opencode: OpenCode Go subscription (`yes`/`no`, default: `no`) |
+| `RAILWAY_TOKEN` | No | Railway CLI auth token |
+| `VERCEL_TOKEN` | No | Vercel CLI auth token |
+| `SUPABASE_ACCESS_TOKEN` | No | Supabase CLI auth token |
+| `CLOUDFLARE_API_TOKEN` | No | Wrangler (Cloudflare) CLI auth token |
 
 ## How It Works
 
@@ -78,10 +84,14 @@ acfs-railway/
 ├── railway.json               # Railway deployment config
 ├── session-manager/
 │   └── server.js              # Dashboard + ttyd session routing
+├── .env.example               # All env vars with defaults
 ├── acfs/                      # Configs copied INTO the Docker image
 │   ├── AGENTS.md              # Agent instructions for the container
-│   ├── claude/settings.json   # Claude Code settings (MCP Agent Mail wired)
+│   ├── bin/acfs-update        # Update tools without image rebuild
+│   ├── claude/settings.json   # Claude Code settings (DCG hooks + MCP Agent Mail)
+│   ├── codex/config.toml      # Codex CLI MCP config
 │   ├── gemini/GEMINI.md       # Gemini CLI instructions
+│   ├── gemini/settings.json   # Gemini CLI MCP config
 │   ├── zsh/acfs.zshrc         # Shell config (aliases, integrations)
 │   ├── zsh/p10k.zsh           # Powerlevel10k theme
 │   ├── tmux/tmux.conf         # Tmux config (Ctrl-a prefix, vim keys)
@@ -115,14 +125,14 @@ The Dockerfile installs tools in order:
 2. Go + Rust toolchains
 3. Modern CLI tools (bat, fd, ripgrep, eza, delta, fzf, zoxide, lazygit)
 4. Language runtimes (Bun, Node.js, Python/uv)
-5. AI coding agents (Claude, Codex, Gemini, OpenCode)
+5. AI coding agents (Claude, Codex, Gemini, OpenCode) + LSP servers
 6. Cloud CLIs (Railway, Wrangler, Supabase, Vercel, Vault)
 7. Dicklesworthstone stack — Go tools (NTM, SLB, BV, CAAM)
 8. Dicklesworthstone stack — Rust tools (Beads, CASS, DCG, etc.)
 9. Dicklesworthstone stack — Script/TS/Python tools (Agent Mail, UBS, CM, RU, etc.)
 10. Shell setup (Oh My Zsh, Powerlevel10k, plugins)
-11. Config deployment (zshrc, tmux.conf, AGENTS.md, Claude hooks)
-12. Entrypoint (user setup, SSH keys, dotfiles, session manager)
+11. Config deployment (zshrc, tmux.conf, AGENTS.md, agent MCP configs, hooks)
+12. Entrypoint (user setup, SSH keys, git auth, cloud CLI auth, session manager)
 
 ### Modifying Container Configs
 
