@@ -18,7 +18,8 @@ A Docker image that packages **50+ developer tools and 3 AI coding agents** into
 - **Cloud CLIs** — Railway, Wrangler, Supabase, Vercel, Vault
 - **Dicklesworthstone Stack** — NTM, SLB, Beads, CASS, CM, DCG, UBS, RU, and more
 - **Web IDE** — code-server (VS Code in browser)
-- **Session Manager** — dashboard for managing multiple tmux/ttyd sessions
+- **NTM Orchestration** — multi-agent coordination with recipes, workflows, and a visual dashboard
+- **Session Manager** — browser dashboard for NTM spawning, session management, and agent controls
 
 ## Quick Start
 
@@ -61,15 +62,15 @@ A Docker image that packages **50+ developer tools and 3 AI coding agents** into
 ```
 Browser → Railway URL → Session Manager (:7681)
                               │
-                    ┌─────────┴─────────┐
-                    ▼                   ▼
-              tmux session 1      tmux session 2
-              (via ttyd)          (via ttyd)
-
-              code-server (:18080) — VS Code in browser
+                    ┌─────────┼─────────────────┐
+                    ▼         ▼                  ▼
+              NTM Dashboard   Manual Sessions    code-server (:18080)
+              (spawn/send/    (tmux + ttyd)      VS Code in browser
+               recipes/
+               workflows)
 ```
 
-The **Session Manager** (`session-manager/server.js`) serves a dashboard at the root URL. Each terminal session gets its own tmux session with a dedicated ttyd instance. Sessions persist across browser refreshes.
+The **Session Manager** (`session-manager/server.js`) serves a dashboard at the root URL with full NTM integration. You can spawn multi-agent sessions using recipes (e.g. `full-stack`, `balanced`), workflow templates (e.g. `red-green`, `review-pipeline`), or custom agent combinations. Each session gets its own tmux window with dedicated ttyd instances. Sessions persist across browser refreshes.
 
 **Persistence** — Railway volumes keep your data across deploys:
 - `/data/projects` — your code
@@ -83,15 +84,19 @@ acfs-railway/
 ├── railway.toml               # Railway deployment config
 ├── railway.json               # Railway deployment config
 ├── session-manager/
-│   └── server.js              # Dashboard + ttyd session routing
+│   └── server.js              # NTM dashboard + ttyd session routing
 ├── .env.example               # All env vars with defaults
 ├── acfs/                      # Configs copied INTO the Docker image
 │   ├── AGENTS.md              # Agent instructions for the container
 │   ├── bin/acfs-update        # Update tools without image rebuild
+│   ├── bin/clip               # OSC 52 clipboard helper (web terminal copy)
+│   ├── bin/xclip              # xclip shim → OSC 52
+│   ├── bin/xsel               # xsel shim → OSC 52
 │   ├── claude/settings.json   # Claude Code settings (DCG hooks + MCP Agent Mail)
 │   ├── codex/config.toml      # Codex CLI MCP config
 │   ├── gemini/GEMINI.md       # Gemini CLI instructions
 │   ├── gemini/settings.json   # Gemini CLI MCP config
+│   ├── ntm/config.toml        # NTM multi-agent orchestration config
 │   ├── zsh/acfs.zshrc         # Shell config (aliases, integrations)
 │   ├── zsh/p10k.zsh           # Powerlevel10k theme
 │   ├── tmux/tmux.conf         # Tmux config (Ctrl-a prefix, vim keys)
