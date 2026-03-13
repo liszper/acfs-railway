@@ -1,0 +1,67 @@
+#!/bin/bash
+# audit-log — append-only JSONL logger for agent file mutations
+#
+# Usage:
+#   audit-log <action> <file-path> [agent] [detail]
+#   echo "text" | audit-log modify /data/projects/foo.ts claude
+#
+# Actions: create, modify, delete, rename, exec
+# Output: /data/audit/agent-actions.jsonl (append-only)
+#
+# Called from: Claude on-file-write hook, auto-push, webhook-fire, inotifywait watcher
+
+AUDIT_DIR="${AUDIT_DIR:-/data/audit}"
+AUDIT_FILE="$AUDIT_DIR/agent-actions.jsonl"
+
+# Ensure audit directory exists
+mkdir -p "$AUDIT_DIR"
+
+action="${1:-unknown}"
+filepath="${2:-}"
+agent="${3:-unknown}"
+detail="${4:-}"
+
+# Timestamp in ISO 8601
+ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Get file size if it exists
+size=""
+if [ -n "$filepath" ] && [ -f "$filepath" ]; then
+    size=$(stat -c%s "$filepath" 2>/dev/null || stat -f%z "$filepath" 2>/dev/null || echo "")
+fi
+
+# Detect agent from environment if not provided
+if [ "$agent" = "unknown" ]; then
+    if [ -n "$CLAUDE_CODE" ] || [ -n "$ANTHROPIC_API_KEY" ] && pgrep -x claude >/dev/null 2>&1; then
+        agent="claude"
+    elif pgrep -x codex >/dev/null 2>&1; then
+        agent="codex"
+    elif pgrep -x gemini >/dev/null 2>&1; then
+        agent="gemini"
+    elif pgrep -x opencode >/dev/null 2>&1; then
+        agent="opencode"
+    fi
+fi
+
+# Get git context if in a repo
+git_branch=""
+git_sha=""
+if [ -n "$filepath" ] && [ -d "$(dirname "$filepath")/.git" ] || git -C "$(dirname "$filepath" 2>/dev/null)" rev-parse --git-dir >/dev/null 2>&1; then
+    git_branch=$(git -C "$(dirname "$filepath")" branch --show-current 2>/dev/null || echo "")
+    git_sha=$(git -C "$(dirname "$filepath")" rev-parse --short HEAD 2>/dev/null || echo "")
+fi
+
+# Build JSON line (no jq dependency — manual construction)
+json="{"
+json+="\"ts\":\"$ts\""
+json+=",\"action\":\"$action\""
+json+=",\"path\":\"$filepath\""
+json+=",\"agent\":\"$agent\""
+[ -n "$size" ] && json+=",\"size\":$size"
+[ -n "$git_branch" ] && json+=",\"branch\":\"$git_branch\""
+[ -n "$git_sha" ] && json+=",\"sha\":\"$git_sha\""
+[ -n "$detail" ] && json+=",\"detail\":\"$(echo "$detail" | sed 's/"/\\"/g')\""
+json+="}"
+
+# Append (atomic-ish via >>)
+echo "$json" >> "$AUDIT_FILE"

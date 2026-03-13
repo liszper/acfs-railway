@@ -1,9 +1,9 @@
 projects_base = "/data/projects"
 
 [agents]
-claude = "claude --dangerously-skip-permissions"
-codex = "codex --dangerously-bypass-approvals-and-sandbox"
-gemini = "gemini --yolo"
+claude = "agent-limiter claude --dangerously-skip-permissions"
+codex = "agent-limiter codex --dangerously-bypass-approvals-and-sandbox"
+gemini = "agent-limiter gemini --yolo"
 default_count = 2
 
 [tmux]

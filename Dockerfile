@@ -1,9 +1,99 @@
 # ============================================================
 # ACFS Railway — Agentic Coding Flywheel on Railway
 # Browser-accessible coding terminal with AI agents pre-installed
-# The comprehensive edition: 50+ tools, all batteries included
+# Multi-stage build: Go/Rust stack tools built in builder stages,
+# only binaries copied to final image (~4GB layer savings)
 # ============================================================
 
+# ===== Stage 1: Go stack tool builder =====
+FROM golang:1.23.6-bookworm AS go-tools
+WORKDIR /build
+RUN mkdir -p /out
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/ntm.git ntm \
+    && cd ntm && (go build -o /out/ntm ./cmd/ntm 2>/dev/null || go build -o /out/ntm . 2>/dev/null) \
+    && cd /build && rm -rf ntm) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/simultaneous_launch_button.git slb \
+    && cd slb && (go build -o /out/slb ./cmd/slb 2>/dev/null || go build -o /out/slb . 2>/dev/null) \
+    && cd /build && rm -rf slb) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/beads_viewer.git bv \
+    && cd bv && (go build -o /out/bv ./cmd/bv 2>/dev/null || go build -o /out/bv . 2>/dev/null) \
+    && cd /build && rm -rf bv) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/caam.git caam \
+    && cd caam && (go build -o /out/caam ./cmd/caam 2>/dev/null || go build -o /out/caam . 2>/dev/null) \
+    && cd /build && rm -rf caam) || true
+
+# ===== Stage 2: Rust stack tool builder =====
+FROM rust:latest AS rust-tools
+WORKDIR /build
+RUN mkdir -p /out
+
+RUN cargo install ast-grep --locked 2>/dev/null && cp /usr/local/cargo/bin/sg /out/ || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/beads_rust.git beads \
+    && cd beads && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable -name "beads*" -exec cp {} /out/ \; \
+    && cd /build && rm -rf beads) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/meta_skill.git ms \
+    && cd ms && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf ms) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/process_triage.git pt \
+    && cd pt && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf pt) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_session_search.git cass \
+    && cd cass && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf cass) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/dcg.git dcg \
+    && cd dcg && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf dcg) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/xf.git xf \
+    && cd xf && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf xf) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/toon_rust.git tru \
+    && cd tru && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf tru) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/rano.git rano \
+    && cd rano && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf rano) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/markdown_web_browser.git mdwb \
+    && cd mdwb && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf mdwb) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git rp \
+    && cd rp && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf rp) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git aadc \
+    && cd aadc && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf aadc) || true
+
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_usage_tracker.git caut \
+    && cd caut && cargo build --release \
+    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
+    && cd /build && rm -rf caut) || true
+
+# ===== Stage 3: Final image =====
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -68,10 +158,7 @@ RUN curl -fsSL "https://github.com/ajeetdsouza/zoxide/releases/download/v0.9.6/z
 RUN curl -fsSL "https://github.com/jesseduffield/lazygit/releases/download/v0.44.1/lazygit_0.44.1_Linux_x86_64.tar.gz" \
     | tar -xz -C /usr/local/bin/ lazygit
 
-# ast-grep (syntax-aware code search, needed by UBS)
-RUN cargo install ast-grep --locked 2>/dev/null \
-    && cp /opt/cargo/bin/sg /usr/local/bin/ 2>/dev/null \
-    || echo "ast-grep: build skipped"
+# ast-grep built in rust-tools stage, binary copied via COPY --from
 
 # atuin (shell history with search)
 RUN curl -fsSL "https://github.com/atuinsh/atuin/releases/latest/download/atuin-x86_64-unknown-linux-musl.tar.gz" \
@@ -146,130 +233,15 @@ RUN curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.s
     || echo "railway: install skipped"
 
 # ============================================================
-# Phase 7: Dicklesworthstone Stack — Go tools
+# Phase 7+8: Dicklesworthstone Stack — Go + Rust tool binaries
+# Built in separate stages (go-tools, rust-tools), only binaries copied here.
+# This eliminates ~4GB of intermediate build layers.
 # ============================================================
+COPY --from=go-tools /out/ /usr/local/bin/
+COPY --from=rust-tools /out/ /usr/local/bin/
 
-# NTM — Named Tmux Manager (agent cockpit)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/ntm.git /tmp/ntm \
-    && cd /tmp/ntm && go build -o /usr/local/bin/ntm ./cmd/ntm 2>/dev/null \
-    || (cd /tmp/ntm && go build -o /usr/local/bin/ntm . 2>/dev/null) \
-    && cd / && rm -rf /tmp/ntm) \
-    || echo "ntm: build skipped"
-
-# SLB — Simultaneous Launch Button (two-person rule)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/simultaneous_launch_button.git /tmp/slb \
-    && cd /tmp/slb && go build -o /usr/local/bin/slb ./cmd/slb 2>/dev/null \
-    || (cd /tmp/slb && go build -o /usr/local/bin/slb . 2>/dev/null) \
-    && cd / && rm -rf /tmp/slb) \
-    || echo "slb: build skipped"
-
-# Beads Viewer — TUI for beads (Go)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/beads_viewer.git /tmp/bv \
-    && cd /tmp/bv && go build -o /usr/local/bin/bv ./cmd/bv 2>/dev/null \
-    || (cd /tmp/bv && go build -o /usr/local/bin/bv . 2>/dev/null) \
-    && cd / && rm -rf /tmp/bv) \
-    || echo "beads_viewer: build skipped"
-
-# CAAM — Agent auth switching (Go)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/caam.git /tmp/caam \
-    && cd /tmp/caam && go build -o /usr/local/bin/caam ./cmd/caam 2>/dev/null \
-    || (cd /tmp/caam && go build -o /usr/local/bin/caam . 2>/dev/null) \
-    && cd / && rm -rf /tmp/caam) \
-    || echo "caam: build skipped"
-
-# Copy any go-installed binaries
+# Copy any go-installed binaries from final-stage gopath
 RUN cp /opt/gopath/bin/* /usr/local/bin/ 2>/dev/null || true
-
-# ============================================================
-# Phase 8: Dicklesworthstone Stack — Rust tools
-# ============================================================
-
-# Beads — graph-aware issue tracker
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/beads_rust.git /tmp/beads \
-    && cd /tmp/beads && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable -name "beads*" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/beads) \
-    || echo "beads: build skipped"
-
-# Meta Skill — semantic search knowledge base
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/meta_skill.git /tmp/ms \
-    && cd /tmp/ms && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/ms) \
-    || echo "meta_skill: build skipped"
-
-# Process Triage — zombie process killer
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/process_triage.git /tmp/pt \
-    && cd /tmp/pt && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/pt) \
-    || echo "process_triage: build skipped"
-
-# CASS — agent session history search
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_session_search.git /tmp/cass \
-    && cd /tmp/cass && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/cass) \
-    || echo "cass: build skipped"
-
-# DCG — Destructive Command Guard
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/dcg.git /tmp/dcg \
-    && cd /tmp/dcg && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/dcg) \
-    || echo "dcg: build skipped"
-
-# XF — ultra-fast Twitter archive search (Tantivy)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/xf.git /tmp/xf \
-    && cd /tmp/xf && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/xf) \
-    || echo "xf: build skipped"
-
-# Toon Rust — token-optimized notation
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/toon_rust.git /tmp/tru \
-    && cd /tmp/tru && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/tru) \
-    || echo "toon_rust: build skipped"
-
-# RANO — network observer for AI CLIs
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/rano.git /tmp/rano \
-    && cd /tmp/rano && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/rano) \
-    || echo "rano: build skipped"
-
-# MDWB — markdown web browser
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/markdown_web_browser.git /tmp/mdwb \
-    && cd /tmp/mdwb && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/mdwb) \
-    || echo "mdwb: build skipped"
-
-# Rust Proxy — transparent proxy routing
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git /tmp/rp \
-    && cd /tmp/rp && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/rp) \
-    || echo "rust_proxy: build skipped"
-
-# AADC — ASCII diagram corrector
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/aadc.git /tmp/aadc \
-    && cd /tmp/aadc && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/aadc) \
-    || echo "aadc: build skipped"
-
-# CAUT — coding agent usage tracker
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_usage_tracker.git /tmp/caut \
-    && cd /tmp/caut && cargo build --release \
-    && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec mv {} /usr/local/bin/ \; \
-    && cd / && rm -rf /tmp/caut) \
-    || echo "caut: build skipped"
-
-# Clean Rust build caches
-RUN rm -rf /opt/cargo/registry /opt/cargo/git /tmp/*
 
 # ============================================================
 # Phase 9: Dicklesworthstone Stack — Script/TS/Python tools
@@ -337,8 +309,8 @@ RUN (git clone --depth 1 https://github.com/Dicklesworthstone/source_to_prompt_t
     && ln -sf /opt/acfs/s2p/bin/s2p /usr/local/bin/s2p 2>/dev/null) \
     || echo "s2p: install skipped"
 
-# Clean Go caches
-RUN rm -rf /opt/gopath/pkg /tmp/*
+# Go/Rust build caches no longer accumulate here (multi-stage build)
+RUN rm -rf /tmp/*
 
 # ============================================================
 # Phase 10: Copy session manager and ACFS repo config files
@@ -356,6 +328,24 @@ RUN curl -fsSL https://code-server.dev/install.sh | sh 2>/dev/null \
 # ============================================================
 RUN curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64" -o /usr/local/bin/ttyd \
     && chmod +x /usr/local/bin/ttyd
+
+# ============================================================
+# Phase 10d: Process supervision + OAuth authentication
+# ============================================================
+
+# supervisord — process manager for session-manager, code-server, oauth2-proxy
+RUN pip3 install --break-system-packages supervisor
+
+# oauth2-proxy — optional OAuth2 auth layer (GitHub/Google/OIDC)
+# Only active when OAUTH2_CLIENT_ID env var is set at runtime
+ARG OAUTH2_PROXY_VERSION=v7.14.3
+RUN curl -fsSL "https://github.com/oauth2-proxy/oauth2-proxy/releases/download/${OAUTH2_PROXY_VERSION}/oauth2-proxy-${OAUTH2_PROXY_VERSION}.linux-amd64.tar.gz" \
+    | tar -xz --strip-components=1 -C /usr/local/bin "oauth2-proxy-${OAUTH2_PROXY_VERSION}.linux-amd64/oauth2-proxy" \
+    || echo "oauth2-proxy: install skipped"
+
+# inotify-tools — file watcher for audit logging
+RUN apt-get update && apt-get install -y --no-install-recommends inotify-tools \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ============================================================
 # Phase 11: Create default non-root user
@@ -454,6 +444,16 @@ RUN for f in clip xclip xsel; do \
         && chmod +x "/usr/local/bin/$f"; \
     done || true
 
+# Pro infrastructure scripts (audit, auto-push, resource limits, webhooks)
+RUN for f in audit-log auto-push agent-limiter webhook-fire; do \
+        cp "/opt/acfs-repo/acfs/bin/$f" "/usr/local/bin/$f" 2>/dev/null \
+        && chmod +x "/usr/local/bin/$f"; \
+    done || true
+
+# Supervisor base config
+RUN mkdir -p /etc/supervisor/conf.d /data/logs/supervisor \
+    && cp /opt/acfs-repo/acfs/supervisor/supervisord.conf /etc/supervisor/supervisord.conf 2>/dev/null || true
+
 # Ensure dev owns everything
 RUN chown -R dev:dev /home/dev
 
@@ -461,7 +461,7 @@ RUN chown -R dev:dev /home/dev
 RUN cp -a /home/dev /etc/skel-dev
 
 # ============================================================
-# Entrypoint: set up user/hostname from env vars, then start ttyd
+# Entrypoint: setup user/hostname, generate supervisor configs, launch services
 # ============================================================
 COPY <<'ENTRYPOINT' /usr/local/bin/entrypoint.sh
 #!/bin/bash
@@ -626,9 +626,8 @@ chown "$TARGET_USER:$(id -gn "$TARGET_USER")" /data/projects 2>/dev/null || true
 chown "$TARGET_USER:$(id -gn "$TARGET_USER")" /data/projects/AGENTS.md 2>/dev/null || true
 chown "$TARGET_USER:$(id -gn "$TARGET_USER")" /data/projects/GEMINI.md 2>/dev/null || true
 
-# Start code-server in background (accessible via session manager dashboard)
+# code-server config (supervisor manages the process)
 if command -v code-server &>/dev/null; then
-    # Write config before starting
     CS_CONFIG_DIR="$TARGET_HOME/.config/code-server"
     mkdir -p "$CS_CONFIG_DIR"
     cat > "$CS_CONFIG_DIR/config.yaml" << EOF
@@ -640,13 +639,125 @@ app-name: ACFS Code
 disable-telemetry: true
 EOF
     chown -R "$TARGET_USER:$(id -gn "$TARGET_USER")" "$CS_CONFIG_DIR"
-
-    su - "$TARGET_USER" -c "code-server /data/projects" &
-    echo "code-server started on port 18080"
 fi
 
-# Start the session manager (dashboard + multi-session ttyd routing)
-exec node /opt/acfs-session-manager/server.js
+# ── Generate supervisor program configs ─────────────────────────────────────
+mkdir -p /etc/supervisor/conf.d /data/logs/supervisor
+
+# Determine ports: if OAuth enabled, proxy gets external port, session-manager gets internal
+if [ -n "${OAUTH2_CLIENT_ID:-}" ]; then
+    SM_PORT=7682
+    OAUTH_PORT="${PORT:-7681}"
+else
+    SM_PORT="${PORT:-7681}"
+fi
+
+cat > /etc/supervisor/conf.d/session-manager.conf << EOF
+[program:session-manager]
+command=node /opt/acfs-session-manager/server.js
+environment=PORT="$SM_PORT"
+autostart=true
+autorestart=true
+startsecs=3
+startretries=5
+stopsignal=TERM
+stopwaitsecs=15
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+priority=100
+EOF
+
+if command -v code-server &>/dev/null; then
+cat > /etc/supervisor/conf.d/code-server.conf << EOF
+[program:code-server]
+command=su - $TARGET_USER -c "code-server /data/projects"
+autostart=true
+autorestart=true
+startsecs=5
+startretries=3
+stopsignal=TERM
+stopwaitsecs=10
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+priority=200
+EOF
+fi
+
+# OAuth proxy (only when credentials are configured)
+if [ -n "${OAUTH2_CLIENT_ID:-}" ]; then
+    echo "OAuth2 proxy enabled (provider: ${OAUTH2_PROVIDER:-github})"
+
+    # Generate oauth2-proxy config from env vars
+    cat > /etc/oauth2-proxy.cfg << EOF
+provider = "${OAUTH2_PROVIDER:-github}"
+http_address = "0.0.0.0:$OAUTH_PORT"
+upstreams = ["http://127.0.0.1:$SM_PORT/"]
+client_id = "${OAUTH2_CLIENT_ID}"
+client_secret = "${OAUTH2_CLIENT_SECRET}"
+cookie_secret = "${OAUTH2_COOKIE_SECRET}"
+cookie_secure = true
+reverse_proxy = true
+email_domains = ["${OAUTH2_ALLOWED_EMAILS:-*}"]
+EOF
+
+    # GitHub org restriction (optional)
+    if [ -n "${OAUTH2_GITHUB_ORG:-}" ]; then
+        echo "github_org = \"${OAUTH2_GITHUB_ORG}\"" >> /etc/oauth2-proxy.cfg
+    fi
+
+    # Redirect URL (auto-detect from Railway or explicit)
+    if [ -n "${OAUTH2_REDIRECT_URL:-}" ]; then
+        echo "redirect_url = \"${OAUTH2_REDIRECT_URL}\"" >> /etc/oauth2-proxy.cfg
+    fi
+
+cat > /etc/supervisor/conf.d/oauth2-proxy.conf << EOF
+[program:oauth2-proxy]
+command=/usr/local/bin/oauth2-proxy --config=/etc/oauth2-proxy.cfg
+autostart=true
+autorestart=true
+startsecs=3
+startretries=3
+stopsignal=TERM
+stopwaitsecs=10
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+priority=50
+EOF
+fi
+
+# Audit file watcher (logs all file changes in /data/projects)
+if command -v inotifywait &>/dev/null; then
+cat > /etc/supervisor/conf.d/audit-watcher.conf << 'EOF'
+[program:audit-watcher]
+command=/bin/bash -c "inotifywait -m -r -e modify,create,delete,move --format '%%T %%e %%w%%f' --timefmt '%%Y-%%m-%%dT%%H:%%M:%%SZ' /data/projects 2>/dev/null | while read ts event path; do audit-log \"${event,,}\" \"$path\" unknown \"inotify: $event\"; done"
+autostart=true
+autorestart=unexpected
+startsecs=1
+startretries=3
+stopsignal=TERM
+stopwaitsecs=5
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+priority=300
+EOF
+fi
+
+echo "=== ACFS: Starting supervised services ==="
+exec supervisord -n -c /etc/supervisor/supervisord.conf
 ENTRYPOINT
 RUN chmod +x /usr/local/bin/entrypoint.sh
 

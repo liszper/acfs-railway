@@ -1,0 +1,47 @@
+#!/bin/bash
+# webhook-fire — send event notifications to external services
+#
+# Usage:
+#   webhook-fire <event> [detail-json]
+#
+# Events: agent.session.start, agent.session.end, git.push, pr.created,
+#         task.completed, build.passed, build.failed, error
+#
+# Env vars:
+#   WEBHOOK_URL     — destination URL (required, no-op if unset)
+#   WEBHOOK_SECRET  — HMAC-SHA256 signing secret (optional)
+#   ACFS_HOSTNAME   — included in payload for identification
+#
+# Payload format:
+#   { "event": "...", "timestamp": "...", "hostname": "...", "detail": {...} }
+#
+# Called from: auto-push, NTM session lifecycle, CI hooks
+
+WEBHOOK_URL="${WEBHOOK_URL:-}"
+WEBHOOK_SECRET="${WEBHOOK_SECRET:-}"
+HOSTNAME_ID="${ACFS_HOSTNAME:-acfs}"
+
+if [ -z "$WEBHOOK_URL" ]; then
+    exit 0  # No webhook configured, silent no-op
+fi
+
+event="${1:-unknown}"
+detail="${2:-{}}"
+ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Build payload
+payload="{\"event\":\"$event\",\"timestamp\":\"$ts\",\"hostname\":\"$HOSTNAME_ID\",\"detail\":$detail}"
+
+# Compute HMAC signature if secret is set
+headers=(-H "Content-Type: application/json")
+if [ -n "$WEBHOOK_SECRET" ]; then
+    sig=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -binary | xxd -p -c 256)
+    headers+=(-H "X-Webhook-Signature: sha256=$sig")
+fi
+
+# Fire and forget (async, don't block caller)
+curl -sS -X POST "$WEBHOOK_URL" \
+    "${headers[@]}" \
+    -d "$payload" \
+    --max-time 10 \
+    >/dev/null 2>&1 &

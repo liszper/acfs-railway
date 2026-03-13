@@ -1,0 +1,70 @@
+#!/bin/bash
+# auto-push — commit and push uncommitted work to prevent data loss
+#
+# Usage:
+#   auto-push                    # scan all repos in /data/projects
+#   auto-push /data/projects/foo # specific repo only
+#
+# Called from: tmux session-close hook, container SIGTERM handler, NTM session end
+# Commits with auto-save prefix so it's clear these aren't manual commits.
+
+PROJECTS_DIR="${PROJECTS_DIR:-/data/projects}"
+AUDIT_LOG="${AUDIT_LOG:-/usr/local/bin/audit-log}"
+
+auto_push_repo() {
+    local dir="$1"
+    [ -d "$dir/.git" ] || return 0
+
+    cd "$dir" || return 1
+
+    # Check for uncommitted changes (staged + unstaged + untracked)
+    if [ -z "$(git status --porcelain 2>/dev/null)" ]; then
+        return 0
+    fi
+
+    # Check if remote exists
+    local remote
+    remote=$(git remote 2>/dev/null | head -1)
+    if [ -z "$remote" ]; then
+        echo "[auto-push] $dir: no remote configured, skipping push"
+        # Still commit locally to preserve work
+        git add -A 2>/dev/null
+        git commit -m "auto-save: $(date -u +%Y-%m-%dT%H:%M:%SZ)" --no-verify 2>/dev/null
+        return 0
+    fi
+
+    local branch
+    branch=$(git branch --show-current 2>/dev/null)
+    if [ -z "$branch" ]; then
+        echo "[auto-push] $dir: detached HEAD, skipping"
+        return 0
+    fi
+
+    echo "[auto-push] $dir: saving uncommitted work on $branch..."
+
+    # Stage everything, commit, push
+    git add -A 2>/dev/null
+    git commit -m "auto-save: agent session ended $(date -u +%Y-%m-%dT%H:%M:%SZ)" --no-verify 2>/dev/null
+
+    if git push "$remote" "$branch" 2>/dev/null; then
+        echo "[auto-push] $dir: pushed to $remote/$branch"
+        [ -x "$AUDIT_LOG" ] && "$AUDIT_LOG" exec "$dir" unknown "auto-push: pushed to $remote/$branch"
+    else
+        echo "[auto-push] $dir: push failed (auth or network issue), work saved locally"
+        [ -x "$AUDIT_LOG" ] && "$AUDIT_LOG" exec "$dir" unknown "auto-push: commit saved locally, push failed"
+    fi
+}
+
+# If specific path given, push just that repo
+if [ -n "$1" ]; then
+    auto_push_repo "$1"
+    exit $?
+fi
+
+# Otherwise scan all repos in projects directory
+if [ -d "$PROJECTS_DIR" ]; then
+    for dir in "$PROJECTS_DIR"/*/; do
+        [ -d "$dir" ] || continue
+        auto_push_repo "$dir"
+    done
+fi

@@ -1,0 +1,38 @@
+#!/bin/bash
+# agent-limiter — resource limits for AI agent processes
+#
+# Usage:
+#   agent-limiter claude --dangerously-skip-permissions
+#   agent-limiter codex --dangerously-bypass-approvals-and-sandbox
+#
+# Wraps agent invocation with prlimit to enforce per-agent resource limits.
+# Env vars:
+#   AGENT_MEM_LIMIT  — max virtual memory in bytes (default: 8GB)
+#   AGENT_NPROC      — max child processes (default: 256)
+#   AGENT_NOFILE     — max open files (default: 4096)
+#
+# Called from: NTM config (wraps agent commands)
+
+AGENT_MEM_LIMIT="${AGENT_MEM_LIMIT:-8589934592}"   # 8GB default
+AGENT_NPROC="${AGENT_NPROC:-256}"
+AGENT_NOFILE="${AGENT_NOFILE:-4096}"
+
+if [ $# -eq 0 ]; then
+    echo "Usage: agent-limiter <command> [args...]" >&2
+    exit 1
+fi
+
+# Use prlimit if available (util-linux, usually pre-installed)
+if command -v prlimit >/dev/null 2>&1; then
+    exec prlimit \
+        --as="$AGENT_MEM_LIMIT" \
+        --nproc="$AGENT_NPROC" \
+        --nofile="$AGENT_NOFILE" \
+        -- "$@"
+else
+    # Fallback: ulimit-based (less precise, applies to shell and children)
+    ulimit -v $((AGENT_MEM_LIMIT / 1024)) 2>/dev/null  # ulimit uses KB
+    ulimit -u "$AGENT_NPROC" 2>/dev/null
+    ulimit -n "$AGENT_NOFILE" 2>/dev/null
+    exec "$@"
+fi

@@ -56,6 +56,17 @@ A Docker image that packages **50+ developer tools and 3 AI coding agents** into
 | `VERCEL_TOKEN` | No | Vercel CLI auth token |
 | `SUPABASE_ACCESS_TOKEN` | No | Supabase CLI auth token |
 | `CLOUDFLARE_API_TOKEN` | No | Wrangler (Cloudflare) CLI auth token |
+| `OAUTH2_CLIENT_ID` | No | GitHub OAuth App client ID (enables OAuth login, replaces basic auth) |
+| `OAUTH2_CLIENT_SECRET` | No | GitHub OAuth App client secret |
+| `OAUTH2_COOKIE_SECRET` | No | Session cookie encryption key (`openssl rand -base64 32`) |
+| `OAUTH2_PROVIDER` | No | OAuth provider (default: `github`, also: `google`, `oidc`) |
+| `OAUTH2_ALLOWED_EMAILS` | No | Allowed email domains (default: `*` = any authenticated user) |
+| `OAUTH2_GITHUB_ORG` | No | Restrict to GitHub org members |
+| `OAUTH2_REDIRECT_URL` | No | OAuth callback URL (auto-detected on Railway) |
+| `AGENT_MEM_LIMIT` | No | Per-agent memory limit in bytes (default: 8GB) |
+| `AGENT_NPROC` | No | Per-agent max processes (default: 256) |
+| `WEBHOOK_URL` | No | Webhook URL for event notifications (Slack, Discord, etc) |
+| `WEBHOOK_SECRET` | No | HMAC-SHA256 secret for webhook signing |
 
 ## How It Works
 
