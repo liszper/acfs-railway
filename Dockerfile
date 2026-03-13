@@ -408,6 +408,10 @@ RUN cp /opt/acfs-repo/acfs/zsh/acfs.zshrc /home/dev/.zshrc 2>/dev/null || true
 # Copy p10k config if available
 RUN cp /opt/acfs-repo/acfs/zsh/p10k.zsh /home/dev/.p10k.zsh 2>/dev/null || true
 
+# NTM config (agent commands, resilience, CASS integration)
+RUN mkdir -p /home/dev/.config/ntm \
+    && cp /opt/acfs-repo/acfs/ntm/config.toml /home/dev/.config/ntm/config.toml 2>/dev/null || true
+
 # acfs-update: update tools in-place without image rebuild
 RUN cp /opt/acfs-repo/acfs/bin/acfs-update /usr/local/bin/acfs-update \
     && chmod +x /usr/local/bin/acfs-update 2>/dev/null || true

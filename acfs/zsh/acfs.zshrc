@@ -548,3 +548,8 @@ bv() {
     return 1
   fi
 }
+
+# NTM shell integration (completions, keybindings, aliases)
+if command -v ntm &>/dev/null; then
+  eval "$(ntm shell zsh 2>/dev/null)" || true
+fi
