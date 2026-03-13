@@ -97,7 +97,15 @@ acfs-railway/
 │   ├── gemini/GEMINI.md       # Gemini CLI instructions
 │   ├── gemini/settings.json   # Gemini CLI MCP config
 │   ├── ntm/config.toml        # NTM multi-agent orchestration config
-│   ├── zsh/acfs.zshrc         # Shell config (aliases, integrations)
+│   ├── atuin/config.toml      # Atuin shell history (local-only, no sync)
+│   ├── bat/config             # bat theme + pager settings
+│   ├── lazygit/config.yml     # lazygit delta pager
+│   ├── rano/config.conf       # RANO network observer config
+│   ├── meta-skill/config.toml # Meta Skill search + CASS/DCG integration
+│   ├── cass/sources.toml      # CASS agent session source paths
+│   ├── caut/config.toml       # CAUT agent usage tracker (all providers)
+│   ├── ru/config              # Repo Updater settings
+│   ├── zsh/acfs.zshrc         # Shell config (aliases, fzf, integrations)
 │   ├── zsh/p10k.zsh           # Powerlevel10k theme
 │   ├── tmux/tmux.conf         # Tmux config (Ctrl-a prefix, vim keys)
 │   └── onboard/lessons/       # Tutorial content
