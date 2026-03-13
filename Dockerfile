@@ -654,7 +654,7 @@ fi
 
 cat > /etc/supervisor/conf.d/session-manager.conf << EOF
 [program:session-manager]
-command=node /opt/acfs-session-manager/server.js
+command=bun run /opt/acfs-session-manager/src/index.ts
 environment=PORT="$SM_PORT"
 autostart=true
 autorestart=true

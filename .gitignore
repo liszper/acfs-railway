@@ -19,6 +19,13 @@ tmp/
 temp/
 *.tmp
 
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+
 # OS generated
 .DS_Store
 Thumbs.db
