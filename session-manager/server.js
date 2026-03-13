@@ -1355,7 +1355,7 @@ function dashboardHTML(sessions) {
           '<div class="card-agents">' + agentPillsHTML(r.cc, r.cod, r.gmi) + '</div>' +
           '<div class="card-footer">' +
             '<input type="text" placeholder="' + escapeHtml(r.id) + '-..." id="rname-' + r.id + '">' +
-            '<button class="btn btn-create btn-sm" onclick="spawnRecipe(\'' + r.id + '\')">Spawn</button>' +
+            '<button class="btn btn-create btn-sm" onclick="spawnRecipe(\\'' + r.id + '\\')">Spawn</button>' +
           '</div>';
         grid.appendChild(div);
       });
@@ -1374,7 +1374,7 @@ function dashboardHTML(sessions) {
           '<div class="card-desc">' + escapeHtml(t.desc) + '</div>' +
           '<div class="card-footer">' +
             '<input type="text" placeholder="' + escapeHtml(t.id) + '-..." id="tname-' + t.id + '">' +
-            '<button class="btn btn-create btn-sm" onclick="spawnTemplate(\'' + t.id + '\')">Spawn</button>' +
+            '<button class="btn btn-create btn-sm" onclick="spawnTemplate(\\'' + t.id + '\\')">Spawn</button>' +
           '</div>';
         grid.appendChild(div);
       });
@@ -1405,15 +1405,15 @@ function dashboardHTML(sessions) {
       if (s.isNtmSession || paneCount > 1) {
         sendRow =
           '<div class="session-send" onclick="event.stopPropagation()">' +
-            '<input type="text" placeholder="Send prompt..." id="send-' + escapeHtml(s.name) + '" onkeydown="if(event.key===\'Enter\')sendToSession(\'' + escapeHtml(s.name) + '\')">' +
+            '<input type="text" placeholder="Send prompt..." id="send-' + escapeHtml(s.name) + '" onkeydown="if(event.key===\\'Enter\\')sendToSession(\\'' + escapeHtml(s.name) + '\\')">' +
             '<select id="target-' + escapeHtml(s.name) + '">' +
               '<option value="all">All</option>' +
               '<option value="cc">Claude</option>' +
               '<option value="cod">Codex</option>' +
               '<option value="gmi">Gemini</option>' +
             '</select>' +
-            '<button class="btn btn-send" onclick="sendToSession(\'' + escapeHtml(s.name) + '\')">Send</button>' +
-            '<button class="btn btn-interrupt" onclick="interruptSession(\'' + escapeHtml(s.name) + '\')">Ctrl-C</button>' +
+            '<button class="btn btn-send" onclick="sendToSession(\\'' + escapeHtml(s.name) + '\\')">Send</button>' +
+            '<button class="btn btn-interrupt" onclick="interruptSession(\\'' + escapeHtml(s.name) + '\\')">Ctrl-C</button>' +
           '</div>';
       }
 
@@ -1432,7 +1432,7 @@ function dashboardHTML(sessions) {
         '</div>' +
         '<div class="session-actions">' +
           '<a href="' + s.url + '" target="_blank" class="btn btn-open btn-sm" onclick="event.stopPropagation()">Open Terminal</a>' +
-          '<button onclick="event.stopPropagation(); deleteSession(\'' + escapeHtml(s.name) + '\')" class="btn btn-kill btn-sm">Kill</button>' +
+          '<button onclick="event.stopPropagation(); deleteSession(\\'' + escapeHtml(s.name) + '\\')" class="btn btn-kill btn-sm">Kill</button>' +
         '</div>' +
         sendRow;
       return div;
