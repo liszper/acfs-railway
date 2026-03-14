@@ -976,6 +976,72 @@ export function getStyles(): string {
     .secrets-cli-grid { grid-template-columns: 1fr; }
   }
 
+  /* ---- Sessions tab toolbar ---- */
+  .sessions-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .project-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .project-selector-label {
+    font-size: 0.75rem;
+    color: #8b949e;
+    font-weight: 500;
+  }
+  .project-selector select {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    min-width: 200px;
+    cursor: pointer;
+  }
+  .project-selector select:focus {
+    border-color: #58a6ff;
+    outline: none;
+  }
+  .mode-toggles {
+    display: flex;
+    gap: 0.25rem;
+    background: #0d1117;
+    border-radius: 6px;
+    padding: 3px;
+    border: 1px solid #21262d;
+  }
+  .mode-toggle {
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    font-family: inherit;
+    color: #8b949e;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+  }
+  .mode-toggle:hover {
+    color: #c9d1d9;
+  }
+  .mode-toggle.active {
+    color: #c9d1d9;
+    background: #21262d;
+  }
+  .mode-content {
+    display: none;
+  }
+  .mode-content.active {
+    display: block;
+  }
+
   /* ---- Projects tab ---- */
 
   /* Project cards grid */

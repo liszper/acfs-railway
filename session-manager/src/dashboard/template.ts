@@ -36,66 +36,80 @@ ${getStyles()}
 
   <div class="spawn-panel">
     <div class="spawn-tabs">
-      <button class="spawn-tab active" data-tab="quick" onclick="switchTab('quick')">Quick Session</button>
-      <button class="spawn-tab" data-tab="recipes" onclick="switchTab('recipes')">Recipes</button>
-      <button class="spawn-tab" data-tab="templates" onclick="switchTab('templates')">Workflows</button>
-      <button class="spawn-tab" data-tab="custom" onclick="switchTab('custom')">Custom</button>
+      <button class="spawn-tab active" data-tab="sessions" onclick="switchTab('sessions')">Sessions</button>
       <button class="spawn-tab" data-tab="tools" onclick="switchTab('tools')">Tools</button>
       <button class="spawn-tab" data-tab="secrets" onclick="switchTab('secrets')">Secrets</button>
       <button class="spawn-tab" data-tab="projects" onclick="switchTab('projects')">Projects</button>
     </div>
     <div class="spawn-body">
 
-      <div class="spawn-pane active" id="pane-quick">
-        <div class="quick-row">
-          <input type="text" id="newSession" placeholder="Session name..." style="width:220px" onkeydown="if(event.key==='Enter')createSession()">
-          <button class="btn btn-create" onclick="createSession()">+ New Session</button>
+      <div class="spawn-pane active" id="pane-sessions">
+        <div class="sessions-toolbar">
+          <div class="project-selector">
+            <label class="project-selector-label">Project</label>
+            <select id="projectSelect" onchange="onProjectSelect()">
+              <option value="">None</option>
+            </select>
+          </div>
+          <div class="mode-toggles">
+            <button class="mode-toggle active" data-mode="quick" onclick="switchMode('quick')">Quick</button>
+            <button class="mode-toggle" data-mode="recipes" onclick="switchMode('recipes')">Recipes</button>
+            <button class="mode-toggle" data-mode="workflows" onclick="switchMode('workflows')">Workflows</button>
+            <button class="mode-toggle" data-mode="custom" onclick="switchMode('custom')">Custom</button>
+          </div>
           ${codeServerLink}
         </div>
-      </div>
 
-      <div class="spawn-pane" id="pane-recipes">
-        <div class="card-grid" id="recipeGrid"></div>
-      </div>
-
-      <div class="spawn-pane" id="pane-templates">
-        <div class="card-grid" id="templateGrid"></div>
-      </div>
-
-      <div class="spawn-pane" id="pane-custom">
-        <div class="custom-form">
-          <div class="custom-agents">
-            <div class="agent-counter">
-              <label class="label-claude">Claude</label>
-              <div class="counter-controls">
-                <button class="counter-btn" onclick="adjustCounter('cc', -1)">-</button>
-                <span class="counter-val" id="cc-val">1</span>
-                <button class="counter-btn" onclick="adjustCounter('cc', 1)">+</button>
-              </div>
-            </div>
-            <div class="agent-counter">
-              <label class="label-codex">Codex</label>
-              <div class="counter-controls">
-                <button class="counter-btn" onclick="adjustCounter('cod', -1)">-</button>
-                <span class="counter-val" id="cod-val">0</span>
-                <button class="counter-btn" onclick="adjustCounter('cod', 1)">+</button>
-              </div>
-            </div>
-            <div class="agent-counter">
-              <label class="label-gemini">Gemini</label>
-              <div class="counter-controls">
-                <button class="counter-btn" onclick="adjustCounter('gmi', -1)">-</button>
-                <span class="counter-val" id="gmi-val">0</span>
-                <button class="counter-btn" onclick="adjustCounter('gmi', 1)">+</button>
-              </div>
-            </div>
+        <div class="mode-content active" id="mode-quick">
+          <div class="quick-row">
+            <input type="text" id="newSession" placeholder="Session name..." style="width:220px" onkeydown="if(event.key==='Enter')createSession()">
+            <button class="btn btn-create" onclick="createSession()">+ New Session</button>
           </div>
-          <div class="custom-prompt">
-            <textarea id="customPrompt" placeholder="Initial prompt (optional)..." rows="2"></textarea>
-          </div>
-          <div class="custom-bottom">
-            <input type="text" id="customName" placeholder="Session name..." style="width:200px">
-            <button class="btn btn-create" onclick="spawnCustom()">Spawn Team</button>
+        </div>
+
+        <div class="mode-content" id="mode-recipes">
+          <div class="card-grid" id="recipeGrid"></div>
+        </div>
+
+        <div class="mode-content" id="mode-workflows">
+          <div class="card-grid" id="templateGrid"></div>
+        </div>
+
+        <div class="mode-content" id="mode-custom">
+          <div class="custom-form">
+            <div class="custom-agents">
+              <div class="agent-counter">
+                <label class="label-claude">Claude</label>
+                <div class="counter-controls">
+                  <button class="counter-btn" onclick="adjustCounter('cc', -1)">-</button>
+                  <span class="counter-val" id="cc-val">1</span>
+                  <button class="counter-btn" onclick="adjustCounter('cc', 1)">+</button>
+                </div>
+              </div>
+              <div class="agent-counter">
+                <label class="label-codex">Codex</label>
+                <div class="counter-controls">
+                  <button class="counter-btn" onclick="adjustCounter('cod', -1)">-</button>
+                  <span class="counter-val" id="cod-val">0</span>
+                  <button class="counter-btn" onclick="adjustCounter('cod', 1)">+</button>
+                </div>
+              </div>
+              <div class="agent-counter">
+                <label class="label-gemini">Gemini</label>
+                <div class="counter-controls">
+                  <button class="counter-btn" onclick="adjustCounter('gmi', -1)">-</button>
+                  <span class="counter-val" id="gmi-val">0</span>
+                  <button class="counter-btn" onclick="adjustCounter('gmi', 1)">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="custom-prompt">
+              <textarea id="customPrompt" placeholder="Initial prompt (optional)..." rows="2"></textarea>
+            </div>
+            <div class="custom-bottom">
+              <input type="text" id="customName" placeholder="Session name..." style="width:200px">
+              <button class="btn btn-create" onclick="spawnCustom()">Spawn Team</button>
+            </div>
           </div>
         </div>
       </div>

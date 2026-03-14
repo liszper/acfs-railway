@@ -18,6 +18,8 @@ export function getScripts(
     var selectedProject = null;
     var projectTreeState = {};
     var projectsRefreshTimer = null;
+    var currentMode = 'quick';
+    var spawnProjectsList = [];
 
     var RECIPES = ${recipesJSON};
     var TEMPLATES = ${templatesJSON};
@@ -46,6 +48,9 @@ export function getScripts(
       for (var j = 0; j < panes.length; j++) {
         panes[j].classList.toggle('active', panes[j].id === 'pane-' + id);
       }
+      if (id === 'sessions') {
+        loadProjectSelector();
+      }
       if (id === 'tools' && !toolsTabLoaded) {
         toolsTabLoaded = true;
         initToolsTab();
@@ -58,6 +63,48 @@ export function getScripts(
         projectsTabLoaded = true;
         initProjectsTab();
       }
+    }
+
+    function switchMode(mode) {
+      currentMode = mode;
+      var toggles = document.querySelectorAll('.mode-toggle');
+      var contents = document.querySelectorAll('.mode-content');
+      for (var i = 0; i < toggles.length; i++) {
+        toggles[i].classList.toggle('active', toggles[i].dataset.mode === mode);
+      }
+      for (var j = 0; j < contents.length; j++) {
+        contents[j].classList.toggle('active', contents[j].id === 'mode-' + mode);
+      }
+    }
+
+    async function loadProjectSelector() {
+      var select = document.getElementById('projectSelect');
+      if (!select) return;
+      try {
+        var res = await fetch('/api/projects');
+        var data = await res.json();
+        spawnProjectsList = Array.isArray(data) ? data : [];
+      } catch(e) {
+        spawnProjectsList = [];
+      }
+      var currentVal = select.value;
+      select.innerHTML = '<option value="">None</option>';
+      spawnProjectsList.forEach(function(p) {
+        var opt = document.createElement('option');
+        opt.value = p.path;
+        opt.textContent = p.name + (p.branch ? ' (' + p.branch + ')' : '');
+        select.appendChild(opt);
+      });
+      if (currentVal) select.value = currentVal;
+    }
+
+    function onProjectSelect() {
+      // no-op for now, the value is read at spawn time
+    }
+
+    function getSelectedProjectPath() {
+      var select = document.getElementById('projectSelect');
+      return select ? select.value : '';
     }
 
     // ---- Counter controls ----
@@ -165,7 +212,6 @@ export function getScripts(
                 '</div>' +
                 '<div class="card-spawn-row">' +
                   '<input type="text" placeholder="Session name..." id="rname-' + r.id + '">' +
-                  '<input type="text" placeholder="Project path..." id="rpath-' + r.id + '">' +
                 '</div>' +
                 '<textarea class="card-spawn-textarea" placeholder="Initial prompt (optional)..." id="rprompt-' + r.id + '"></textarea>' +
                 '<div class="card-spawn-row">' +
@@ -222,7 +268,6 @@ export function getScripts(
               '<div class="card-spawn-form" onclick="event.stopPropagation()">' +
                 '<div class="card-spawn-row">' +
                   '<input type="text" placeholder="Session name..." id="tname-' + t.id + '">' +
-                  '<input type="text" placeholder="Project path..." id="tpath-' + t.id + '">' +
                 '</div>' +
                 '<textarea class="card-spawn-textarea" placeholder="Initial prompt (optional)..." id="tprompt-' + t.id + '"></textarea>' +
                 '<div class="card-spawn-row">' +
@@ -461,6 +506,8 @@ export function getScripts(
         body = { name: name, recipe: recipeId };
       }
       if (prompt) body.prompt = prompt;
+      var pp = getSelectedProjectPath();
+      if (pp) body.projectPath = pp;
       ntmSpawnRequest(body);
     }
 
@@ -471,6 +518,8 @@ export function getScripts(
       var prompt = promptInput ? promptInput.value.trim() : '';
       var body = { name: name, template: templateId };
       if (prompt) body.prompt = prompt;
+      var pp = getSelectedProjectPath();
+      if (pp) body.projectPath = pp;
       ntmSpawnRequest(body);
     }
 
@@ -481,6 +530,8 @@ export function getScripts(
       if (total === 0) return showToast('Select at least one agent', 'error');
       var body = { name: name, cc: customCounts.cc, cod: customCounts.cod, gmi: customCounts.gmi };
       if (prompt) body.prompt = prompt;
+      var pp = getSelectedProjectPath();
+      if (pp) body.projectPath = pp;
       ntmSpawnRequest(body);
     }
 
@@ -1540,6 +1591,7 @@ export function getScripts(
     (function() {
       renderRecipes();
       renderTemplates();
+      loadProjectSelector();
       var grid = document.getElementById('sessionsGrid');
       if (currentSessions.length === 0) {
         grid.appendChild(renderEmpty());
