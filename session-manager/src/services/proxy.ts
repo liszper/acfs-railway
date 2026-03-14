@@ -1,11 +1,18 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
-import { PORT } from "../config.js";
+import { PORT, TTYD_USER, TTYD_PASS } from "../config.js";
 import { ttydInstances } from "./ttyd.js";
 import { checkUpgradeAuth } from "../utils/http.js";
 import { ensureTmuxSession } from "./sessions.js";
 import { startTtydForSession } from "./ttyd.js";
+
+/** Build Basic auth header for ttyd's own `-c` credential gate. */
+function ttydAuthHeader(): string {
+  return (
+    "Basic " + Buffer.from(`${TTYD_USER}:${TTYD_PASS}`).toString("base64")
+  );
+}
 
 export function proxyRequest(
   req: IncomingMessage,
@@ -17,7 +24,11 @@ export function proxyRequest(
     port: targetPort,
     path: req.url,
     method: req.method,
-    headers: { ...req.headers, host: `127.0.0.1:${targetPort}` },
+    headers: {
+      ...req.headers,
+      host: `127.0.0.1:${targetPort}`,
+      authorization: ttydAuthHeader(),
+    },
   };
 
   const proxy = http.request(options, (proxyRes) => {
@@ -46,7 +57,7 @@ export function handleSessionProxy(
 export function handleWebSocketUpgrade(
   req: IncomingMessage,
   socket: Socket,
-  _head: Buffer
+  head: Buffer
 ): void {
   if (!checkUpgradeAuth(req)) {
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
@@ -65,32 +76,74 @@ export function handleWebSocketUpgrade(
   }
 
   const sessionName = sessionMatch[1];
-  if (!ttydInstances.has(sessionName)) {
+
+  // Ensure ttyd is running — it may not be if the user navigated directly
+  // to /s/<name>/ws without first loading the HTML page.
+  ensureTmuxSession(sessionName);
+  const port = startTtydForSession(sessionName);
+
+  const instance = ttydInstances.get(sessionName);
+  if (!instance) {
     socket.destroy();
     return;
   }
 
-  const { port } = ttydInstances.get(sessionName)!;
   const options: http.RequestOptions = {
     hostname: "127.0.0.1",
     port,
     path: req.url,
     method: "GET",
-    headers: { ...req.headers, host: `127.0.0.1:${port}` },
+    headers: {
+      ...req.headers,
+      host: `127.0.0.1:${port}`,
+      authorization: ttydAuthHeader(),
+    },
   };
 
   const proxy = http.request(options);
-  proxy.on("upgrade", (proxyRes, proxySocket, _proxyHead) => {
+
+  proxy.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    // Send 101 back to the client with upstream headers
+    const headerLines = Object.entries(proxyRes.headers)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\r\n");
     socket.write(
-      `HTTP/1.1 101 Switching Protocols\r\n` +
-        Object.entries(proxyRes.headers)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join("\r\n") +
-        "\r\n\r\n"
+      `HTTP/1.1 101 Switching Protocols\r\n${headerLines}\r\n\r\n`
     );
+
+    // Forward any buffered data from both sides
+    if (proxyHead && proxyHead.length > 0) {
+      socket.write(proxyHead);
+    }
+    if (head && head.length > 0) {
+      proxySocket.write(head);
+    }
+
+    // Bi-directional pipe
     proxySocket.pipe(socket);
     socket.pipe(proxySocket);
+
+    // Clean up on either side closing
+    proxySocket.on("error", () => socket.destroy());
+    socket.on("error", () => proxySocket.destroy());
+    proxySocket.on("close", () => socket.destroy());
+    socket.on("close", () => proxySocket.destroy());
   });
-  proxy.on("error", () => socket.destroy());
+
+  proxy.on("error", (err) => {
+    console.error(`[ws-proxy] error connecting to ttyd (${sessionName}:${port}):`, err.message);
+    socket.destroy();
+  });
+
+  // Handle case where ttyd responds with a non-upgrade (e.g. 401, 502)
+  proxy.on("response", (proxyRes) => {
+    console.error(
+      `[ws-proxy] ttyd (${sessionName}:${port}) responded ${proxyRes.statusCode} instead of 101`
+    );
+    const status = proxyRes.statusCode || 502;
+    socket.write(`HTTP/1.1 ${status} ${proxyRes.statusMessage || "Error"}\r\n\r\n`);
+    socket.destroy();
+  });
+
   proxy.end();
 }
