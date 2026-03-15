@@ -44,6 +44,16 @@ function routeRequest(
 ): void {
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
 
+  // Bun's http.createServer does NOT fire the "upgrade" event for WebSocket
+  // requests. They arrive here as normal HTTP requests. Intercept them BEFORE
+  // checkAuth (which would send a 401 HTML response and kill the handshake).
+  // handleWebSocketUpgrade does its own cookie-based auth via checkUpgradeAuth.
+  if (req.headers.upgrade?.toLowerCase() === "websocket") {
+    console.log(`[ws-fallback] upgrade detected in routeRequest: ${url.pathname}`);
+    handleWebSocketUpgrade(req, req.socket, Buffer.alloc(0));
+    return;
+  }
+
   if (!checkAuth(req, res)) return;
 
   if (url.pathname === "/" || url.pathname === "") {
@@ -224,6 +234,9 @@ function routeRequest(
 
 export function createServer(): http.Server {
   const server = http.createServer(routeRequest);
-  server.on("upgrade", handleWebSocketUpgrade);
+  server.on("upgrade", (req, socket, head) => {
+    console.log(`[ws-upgrade-event] fired for: ${req.url}`);
+    handleWebSocketUpgrade(req, socket, head);
+  });
   return server;
 }

@@ -1,18 +1,12 @@
 import http from "node:http";
 import { connect } from "node:net";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Socket } from "node:net";
-import { PORT, TTYD_USER, TTYD_PASS } from "../config.js";
+import type { Duplex } from "node:stream";
+import { PORT } from "../config.js";
 import { ttydInstances } from "./ttyd.js";
 import { checkUpgradeAuth, authCookieHeader } from "../utils/http.js";
 import { ensureTmuxSession } from "./sessions.js";
 import { startTtydForSession } from "./ttyd.js";
-
-function ttydAuthHeader(): string {
-  return (
-    "Basic " + Buffer.from(`${TTYD_USER}:${TTYD_PASS}`).toString("base64")
-  );
-}
 
 export function proxyRequest(
   req: IncomingMessage,
@@ -27,7 +21,6 @@ export function proxyRequest(
     headers: {
       ...req.headers,
       host: `127.0.0.1:${targetPort}`,
-      authorization: ttydAuthHeader(),
     },
   };
 
@@ -61,10 +54,13 @@ export function handleSessionProxy(
 
 export function handleWebSocketUpgrade(
   req: IncomingMessage,
-  socket: Socket,
+  socket: Duplex,
   head: Buffer
 ): void {
+  console.log(`[ws-proxy] upgrade request: ${req.url}`);
+
   if (!checkUpgradeAuth(req)) {
+    console.log("[ws-proxy] auth failed — rejecting");
     socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
     socket.destroy();
     return;
@@ -76,6 +72,7 @@ export function handleWebSocketUpgrade(
   );
 
   if (!sessionMatch) {
+    console.log(`[ws-proxy] no session match for path: ${url.pathname}`);
     socket.destroy();
     return;
   }
@@ -83,8 +80,10 @@ export function handleWebSocketUpgrade(
   const sessionName = sessionMatch[1];
   ensureTmuxSession(sessionName);
   const port = startTtydForSession(sessionName);
+  console.log(`[ws-proxy] routing ${sessionName} → 127.0.0.1:${port}`);
 
   if (!ttydInstances.has(sessionName)) {
+    console.log(`[ws-proxy] no ttyd instance for ${sessionName}`);
     socket.destroy();
     return;
   }
@@ -98,7 +97,6 @@ export function handleWebSocketUpgrade(
       hdrs[k] = Array.isArray(v) ? v.join(", ") : v;
     }
     hdrs["host"] = `127.0.0.1:${port}`;
-    hdrs["authorization"] = ttydAuthHeader();
 
     let raw = `GET ${req.url} HTTP/1.1\r\n`;
     for (const [k, v] of Object.entries(hdrs)) {

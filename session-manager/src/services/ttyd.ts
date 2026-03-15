@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process";
 import {
   BASE_TTYD_PORT,
-  TTYD_USER,
-  TTYD_PASS,
   ACFS_USER,
   ACFS_HOSTNAME,
 } from "../config.js";
@@ -22,8 +20,6 @@ export function startTtydForSession(sessionName: string): number {
       "-W",
       "-p",
       String(port),
-      "-c",
-      `${TTYD_USER}:${TTYD_PASS}`,
       "-t",
       `titleFixed=${sessionName} — ${ACFS_HOSTNAME}`,
       "-b",
