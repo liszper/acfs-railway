@@ -1,6 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { TTYD_USER, TTYD_PASS } from "../config.js";
 
+const AUTH_COOKIE = "acfs_ws";
+
+function authTokenValue(): string {
+  return Buffer.from(`${TTYD_USER}:${TTYD_PASS}`).toString("base64");
+}
+
+export function authCookieHeader(): string {
+  return `${AUTH_COOKIE}=${authTokenValue()}; Path=/; HttpOnly; SameSite=Lax`;
+}
+
 export function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let body = "";
@@ -57,9 +67,16 @@ export function requireJsonContentType(
 
 export function checkUpgradeAuth(req: IncomingMessage): boolean {
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith("Basic ")) return false;
-  const [user, pass] = Buffer.from(auth.split(" ")[1], "base64")
-    .toString()
-    .split(":");
-  return user === TTYD_USER && pass === TTYD_PASS;
+  if (auth && auth.startsWith("Basic ")) {
+    const [user, pass] = Buffer.from(auth.split(" ")[1], "base64")
+      .toString()
+      .split(":");
+    if (user === TTYD_USER && pass === TTYD_PASS) return true;
+  }
+
+  const cookies = req.headers.cookie || "";
+  const match = cookies.match(/(?:^|;\s*)acfs_ws=([^;]+)/);
+  if (match && match[1] === authTokenValue()) return true;
+
+  return false;
 }

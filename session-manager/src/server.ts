@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { PORT } from "./config.js";
-import { checkAuth } from "./utils/http.js";
+import { checkAuth, authCookieHeader } from "./utils/http.js";
 import { getTmuxSessions } from "./services/sessions.js";
 import { ttydInstances, startTtydForSession } from "./services/ttyd.js";
 import { handleSessionProxy, handleWebSocketUpgrade } from "./services/proxy.js";
@@ -53,7 +53,10 @@ function routeRequest(
         startTtydForSession(s.name);
       }
     }
-    res.writeHead(200, { "Content-Type": "text/html" });
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      "Set-Cookie": authCookieHeader(),
+    });
     res.end(dashboardHTML(sessions));
     return;
   }

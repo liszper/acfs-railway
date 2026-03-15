@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import { PORT, TTYD_USER, TTYD_PASS } from "../config.js";
 import { ttydInstances } from "./ttyd.js";
-import { checkUpgradeAuth } from "../utils/http.js";
+import { checkUpgradeAuth, authCookieHeader } from "../utils/http.js";
 import { ensureTmuxSession } from "./sessions.js";
 import { startTtydForSession } from "./ttyd.js";
 
@@ -32,7 +32,12 @@ export function proxyRequest(
   };
 
   const proxy = http.request(options, (proxyRes) => {
-    res.writeHead(proxyRes.statusCode!, proxyRes.headers);
+    const headers = { ...proxyRes.headers };
+    const existing = headers["set-cookie"] || [];
+    const arr = Array.isArray(existing) ? [...existing] : [existing];
+    arr.push(authCookieHeader());
+    headers["set-cookie"] = arr;
+    res.writeHead(proxyRes.statusCode!, headers);
     proxyRes.pipe(res);
   });
 
