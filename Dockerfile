@@ -502,6 +502,10 @@ if [ -f /etc/skel-dev/.tmux.conf ]; then
     cp /etc/skel-dev/.tmux.conf "$TARGET_HOME/.tmux.conf" 2>/dev/null || true
 fi
 
+# Fix git safe.directory for volume-mounted projects (different UID between build and runtime)
+git config --global --add safe.directory '*'
+su - "$TARGET_USER" -c "git config --global --add safe.directory '*'" 2>/dev/null || true
+
 # Symlink /home/<user> -> /data/home/<user> for compatibility
 mkdir -p /home
 ln -sfn "$TARGET_HOME" "/home/$TARGET_USER" 2>/dev/null || true

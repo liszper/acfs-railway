@@ -35,12 +35,16 @@ impl SshConnection {
         });
 
         let handler = SshHandler;
+        eprintln!("[ssh] connecting to {}:{}...", host, port);
         let mut handle = client::connect(config, (host, port), handler).await?;
+        eprintln!("[ssh] connected, authenticating as {}...", user);
 
         let auth_result = handle.authenticate_password(user, password).await?;
         if !auth_result {
+            eprintln!("[ssh] auth failed");
             return Err("SSH authentication failed".into());
         }
+        eprintln!("[ssh] authenticated OK");
 
         Ok(Self {
             handle: Arc::new(Mutex::new(handle)),
