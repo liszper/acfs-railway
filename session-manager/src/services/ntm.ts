@@ -6,6 +6,8 @@ import type { NtmSpawnOpts, NtmResult } from "../types.js";
 let ntmAvailableCache: boolean | null = null;
 let ntmAvailableCacheTime = 0;
 
+const VALID_NTM_TARGETS = new Set(["claude", "codex", "gemini", "all"]);
+
 export function isNtmAvailable(): boolean {
   const now = Date.now();
   if (ntmAvailableCache !== null && now - ntmAvailableCacheTime < 30000) {
@@ -60,6 +62,9 @@ export function ntmSend(
   target?: string
 ): NtmResult {
   if (!isNtmAvailable()) return { error: "ntm not available" };
+  if (target && target !== "all" && !VALID_NTM_TARGETS.has(target)) {
+    return { error: `Invalid target: ${target}` };
+  }
   let args = `ntm send ${shellEscape(session)}`;
   if (target && target !== "all") {
     args += ` --${target}`;

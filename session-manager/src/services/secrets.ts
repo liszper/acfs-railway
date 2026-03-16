@@ -26,7 +26,7 @@ interface CliAuthCache {
 
 let cliAuthCache: CliAuthCache | null = null;
 let cliAuthCacheTime = 0;
-let cliAuthRefreshing = false;
+let cliAuthRefreshPromise: Promise<CliAuthCache> | null = null;
 
 // ---------------------------------------------------------------------------
 // SSH key generation mutex
@@ -252,43 +252,35 @@ async function getCliAuth(): Promise<{
   const now = Date.now();
   const stale = !cliAuthCache || now - cliAuthCacheTime > 60000;
 
-  if (stale && !cliAuthRefreshing) {
-    cliAuthRefreshing = true;
-    try {
-      cliAuthCache = await refreshCliAuthCache();
+  if (stale && !cliAuthRefreshPromise) {
+    cliAuthRefreshPromise = refreshCliAuthCache().then((result) => {
+      cliAuthCache = result;
       cliAuthCacheTime = Date.now();
-    } finally {
-      cliAuthRefreshing = false;
-    }
+      cliAuthRefreshPromise = null;
+      return result;
+    }).catch(() => {
+      cliAuthRefreshPromise = null;
+      return cliAuthCache || {
+        railway: { configured: false, authenticated: false },
+        vercel: { configured: false, authenticated: false },
+        supabase: { configured: false, authenticated: false },
+        cloudflare: { configured: false, authenticated: false },
+        ghSshKey: false,
+      };
+    });
+  }
+
+  if (cliAuthRefreshPromise && !cliAuthCache) {
+    const cache = await cliAuthRefreshPromise;
+    return { cache, age: Date.now() - cliAuthCacheTime };
   }
 
   if (cliAuthCache) {
     return { cache: cliAuthCache, age: Date.now() - cliAuthCacheTime };
   }
 
-  if (cliAuthRefreshing) {
-    return {
-      cache: {
-        railway: { configured: false, authenticated: false },
-        vercel: { configured: false, authenticated: false },
-        supabase: { configured: false, authenticated: false },
-        cloudflare: { configured: false, authenticated: false },
-        ghSshKey: false,
-      },
-      age: null,
-    };
-  }
-
-  return {
-    cache: {
-      railway: { configured: false, authenticated: false },
-      vercel: { configured: false, authenticated: false },
-      supabase: { configured: false, authenticated: false },
-      cloudflare: { configured: false, authenticated: false },
-      ghSshKey: false,
-    },
-    age: null,
-  };
+  const cache = await (cliAuthRefreshPromise || refreshCliAuthCache());
+  return { cache, age: 0 };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,4 @@
 import type { ChildProcess } from "node:child_process";
-import type { IncomingMessage, ServerResponse } from "node:http";
 
 export interface TtydInstance {
   port: number;
@@ -68,7 +67,7 @@ export interface ToolStatusMap {
   [tool: string]: boolean;
 }
 
-export interface RecipeRole {
+interface RecipeRole {
   name: string;
   agent: string;
   desc: string;
@@ -218,16 +217,9 @@ export interface ProjectDetail {
   status: GitStatus;
 }
 
-export interface GitLogEntry {
-  hash: string;
-  shortHash: string;
-  message: string;
-  author: string;
-  date: string;
+export interface WsData {
+  sessionName: string;
+  port: number;
+  upstream: WebSocket | null;
+  pending: (string | Buffer)[];
 }
-
-export type RequestHandler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  url: URL
-) => void;

@@ -1,14 +1,10 @@
 import http from "node:http";
-import { connect } from "node:net";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Duplex } from "node:stream";
-import { PORT } from "../config.js";
-import { ttydInstances } from "./ttyd.js";
-import { checkUpgradeAuth, authCookieHeader } from "../utils/http.js";
+import { authCookieHeader } from "../utils/http.js";
 import { ensureTmuxSession } from "./sessions.js";
 import { startTtydForSession } from "./ttyd.js";
 
-export function proxyRequest(
+function proxyRequest(
   req: IncomingMessage,
   res: ServerResponse,
   targetPort: number
@@ -50,72 +46,4 @@ export function handleSessionProxy(
   ensureTmuxSession(sessionName);
   const port = startTtydForSession(sessionName);
   proxyRequest(req, res, port);
-}
-
-export function handleWebSocketUpgrade(
-  req: IncomingMessage,
-  socket: Duplex,
-  head: Buffer
-): void {
-  console.log(`[ws-proxy] upgrade request: ${req.url}`);
-
-  if (!checkUpgradeAuth(req)) {
-    console.log("[ws-proxy] auth failed — rejecting");
-    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-
-  const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-  const sessionMatch = url.pathname.match(
-    /^\/s\/([a-zA-Z0-9_-]+)(\/.*)?$/
-  );
-
-  if (!sessionMatch) {
-    console.log(`[ws-proxy] no session match for path: ${url.pathname}`);
-    socket.destroy();
-    return;
-  }
-
-  const sessionName = sessionMatch[1];
-  ensureTmuxSession(sessionName);
-  const port = startTtydForSession(sessionName);
-  console.log(`[ws-proxy] routing ${sessionName} → 127.0.0.1:${port}`);
-
-  if (!ttydInstances.has(sessionName)) {
-    console.log(`[ws-proxy] no ttyd instance for ${sessionName}`);
-    socket.destroy();
-    return;
-  }
-
-  const upstream = connect({ port, host: "127.0.0.1" });
-
-  upstream.on("connect", () => {
-    const hdrs: Record<string, string> = {};
-    for (const [k, v] of Object.entries(req.headers)) {
-      if (v === undefined) continue;
-      hdrs[k] = Array.isArray(v) ? v.join(", ") : v;
-    }
-    hdrs["host"] = `127.0.0.1:${port}`;
-
-    let raw = `GET ${req.url} HTTP/1.1\r\n`;
-    for (const [k, v] of Object.entries(hdrs)) {
-      raw += `${k}: ${v}\r\n`;
-    }
-    raw += "\r\n";
-
-    upstream.write(raw);
-    if (head.length > 0) upstream.write(head);
-
-    upstream.pipe(socket);
-    socket.pipe(upstream);
-  });
-
-  upstream.on("error", (err) => {
-    console.error(`[ws-proxy] error (${sessionName}:${port}):`, err.message);
-    socket.destroy();
-  });
-  socket.on("error", () => upstream.destroy());
-  upstream.on("close", () => socket.destroy());
-  socket.on("close", () => upstream.destroy());
 }

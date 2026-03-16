@@ -13,6 +13,10 @@ export function startTtydForSession(sessionName: string): number {
   if (ttydInstances.has(sessionName))
     return ttydInstances.get(sessionName)!.port;
 
+  if (!/^[a-zA-Z0-9_-]+$/.test(sessionName)) {
+    throw new Error(`Invalid session name: ${sessionName}`);
+  }
+
   const port = nextPort++;
   const proc = spawn(
     "ttyd",
@@ -34,7 +38,11 @@ export function startTtydForSession(sessionName: string): number {
   );
 
   proc.unref();
-  ttydInstances.set(sessionName, { port, process: proc, pid: proc.pid! });
+  if (proc.pid === undefined) {
+    console.error(`[ttyd] Failed to spawn ttyd for session ${sessionName}`);
+    return port;
+  }
+  ttydInstances.set(sessionName, { port, process: proc, pid: proc.pid });
 
   proc.on("exit", () => {
     ttydInstances.delete(sessionName);

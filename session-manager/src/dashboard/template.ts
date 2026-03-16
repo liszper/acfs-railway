@@ -10,8 +10,9 @@ export function dashboardHTML(sessions: SessionInfo[]): string {
   const processLabelsJSON = JSON.stringify(PROCESS_LABELS);
   const sessionsJSON = JSON.stringify(sessions);
 
+  const escUrl = CODE_SERVER_URL.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const codeServerLink = CODE_SERVER_AVAILABLE
-    ? `<a href="${CODE_SERVER_URL}" target="_blank" class="btn btn-code">VS Code</a>`
+    ? `<a href="${escUrl}" target="_blank" class="btn btn-code">VS Code</a>`
     : "";
 
   return `<!DOCTYPE html>

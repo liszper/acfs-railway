@@ -1,11 +1,14 @@
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { Server, ServerWebSocket } from "bun";
 import { PORT } from "./config.js";
-import { checkAuth, authCookieHeader } from "./utils/http.js";
-import { getTmuxSessions } from "./services/sessions.js";
+import { checkAuth, authCookieHeader, checkBunAuth } from "./utils/http.js";
+import { getTmuxSessions, ensureTmuxSession } from "./services/sessions.js";
 import { ttydInstances, startTtydForSession } from "./services/ttyd.js";
-import { handleSessionProxy, handleWebSocketUpgrade } from "./services/proxy.js";
+import { handleSessionProxy } from "./services/proxy.js";
 import { dashboardHTML } from "./dashboard/template.js";
+import { isNtmAvailable } from "./services/ntm.js";
+import type { WsData } from "./types.js";
 import {
   handleListSessions,
   handleCreateSession,
@@ -43,16 +46,6 @@ function routeRequest(
   res: ServerResponse
 ): void {
   const url = new URL(req.url || "/", `http://localhost:${PORT}`);
-
-  // Bun's http.createServer does NOT fire the "upgrade" event for WebSocket
-  // requests. They arrive here as normal HTTP requests. Intercept them BEFORE
-  // checkAuth (which would send a 401 HTML response and kill the handshake).
-  // handleWebSocketUpgrade does its own cookie-based auth via checkUpgradeAuth.
-  if (req.headers.upgrade?.toLowerCase() === "websocket") {
-    console.log(`[ws-fallback] upgrade detected in routeRequest: ${url.pathname}`);
-    handleWebSocketUpgrade(req, req.socket, Buffer.alloc(0));
-    return;
-  }
 
   if (!checkAuth(req, res)) return;
 
@@ -232,11 +225,119 @@ function routeRequest(
   res.end("Not found");
 }
 
-export function createServer(): http.Server {
-  const server = http.createServer(routeRequest);
-  server.on("upgrade", (req, socket, head) => {
-    console.log(`[ws-upgrade-event] fired for: ${req.url}`);
-    handleWebSocketUpgrade(req, socket, head);
+export function startServer(): void {
+  const nodeServer = http.createServer(routeRequest);
+
+  nodeServer.listen(0, "127.0.0.1", () => {
+    const addr = nodeServer.address();
+    const nodePort = typeof addr === "object" && addr ? addr.port : 0;
+
+    Bun.serve<WsData>({
+      port: PORT,
+
+      async fetch(req: Request, server: Server): Promise<Response | undefined> {
+        const url = new URL(req.url);
+
+        if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          const sessionMatch = url.pathname.match(
+            /^\/s\/([a-zA-Z0-9_-]+)(\/.*)?$/
+          );
+          if (!sessionMatch) {
+            return new Response("Not found", { status: 404 });
+          }
+
+          if (!checkBunAuth(req)) {
+            return new Response("Unauthorized", { status: 401 });
+          }
+
+          const sessionName = sessionMatch[1];
+          ensureTmuxSession(sessionName);
+          const port = startTtydForSession(sessionName);
+
+          const ok = server.upgrade(req, {
+            data: {
+              sessionName,
+              port,
+              upstream: null,
+              pending: [],
+            } satisfies WsData,
+            headers: { "Sec-WebSocket-Protocol": "tty" },
+          });
+
+          return ok ? undefined : new Response("Upgrade failed", { status: 500 });
+        }
+
+        const targetUrl = `http://127.0.0.1:${nodePort}${url.pathname}${url.search}`;
+        try {
+          return await fetch(targetUrl, {
+            method: req.method,
+            headers: req.headers,
+            body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Internal proxy error";
+          return new Response(msg, { status: 502 });
+        }
+      },
+
+      websocket: {
+        open(ws: ServerWebSocket<WsData>) {
+          const { sessionName, port } = ws.data;
+          console.log(`[ws-relay] ${sessionName} opening upstream to 127.0.0.1:${port}`);
+
+          const upstream = new WebSocket(
+            `ws://127.0.0.1:${port}/s/${sessionName}/ws`,
+            ["tty"]
+          );
+          upstream.binaryType = "arraybuffer";
+
+          upstream.onopen = () => {
+            console.log(`[ws-relay] ${sessionName} upstream connected`);
+            ws.data.upstream = upstream;
+            for (const msg of ws.data.pending) {
+              upstream.send(msg);
+            }
+            ws.data.pending = [];
+          };
+
+          upstream.onmessage = (e: MessageEvent) => {
+            const data = e.data;
+            if (data instanceof ArrayBuffer) {
+              ws.sendBinary(new Uint8Array(data));
+            } else if (typeof data === "string") {
+              ws.sendText(data);
+            }
+          };
+
+          upstream.onclose = () => {
+            console.log(`[ws-relay] ${sessionName} upstream closed`);
+            ws.close();
+          };
+
+          upstream.onerror = () => {
+            console.error(`[ws-relay] ${sessionName} upstream error`);
+            ws.close();
+          };
+        },
+
+        message(ws: ServerWebSocket<WsData>, message: string | Buffer) {
+          const up = ws.data.upstream;
+          if (up && up.readyState === WebSocket.OPEN) {
+            up.send(message);
+          } else {
+            ws.data.pending.push(message);
+          }
+        },
+
+        close(ws: ServerWebSocket<WsData>) {
+          ws.data.upstream?.close();
+        },
+      },
+    });
+
+    console.log(`ACFS Session Manager running on port ${PORT}`);
+    console.log(`Dashboard: http://localhost:${PORT}/`);
+    console.log(`Main terminal: http://localhost:${PORT}/s/main/`);
+    console.log(`NTM available: ${isNtmAvailable()}`);
   });
-  return server;
 }

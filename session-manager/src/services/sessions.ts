@@ -4,6 +4,12 @@ import { PROCESS_LABELS } from "../dashboard/data.js";
 import { ttydInstances } from "./ttyd.js";
 import type { SessionInfo, PaneInfo, AgentCounts } from "../types.js";
 
+function assertSafeName(name: string): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    throw new Error(`Invalid session name: ${name}`);
+  }
+}
+
 function getSessionProcess(name: string): string {
   try {
     const output = execSync(
@@ -83,6 +89,7 @@ export function getTmuxSessions(): SessionInfo[] {
 }
 
 export function ensureTmuxSession(name: string): boolean {
+  assertSafeName(name);
   try {
     execSync(
       `su - ${ACFS_USER} -c "tmux has-session -t '${name}'" 2>/dev/null`
@@ -101,6 +108,7 @@ export function ensureTmuxSession(name: string): boolean {
 }
 
 export function killSession(name: string): void {
+  assertSafeName(name);
   const inst = ttydInstances.get(name);
   if (inst) {
     try {

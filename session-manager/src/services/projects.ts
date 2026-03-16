@@ -6,7 +6,6 @@ import type {
   FileChange,
   CommitInfo,
   FileTreeEntry,
-  GitLogEntry,
   ProjectDetail,
 } from "../types.js";
 
@@ -66,13 +65,13 @@ function parsePorcelainV2Branch(output: string): {
         behind = parseInt(match[2], 10);
       }
     } else if (line.length > 0 && !line.startsWith("#")) {
-      const x = line[0];
-      const y = line[1];
-      if (x === "?" && y === "?") {
+      if (line[0] === "?") {
         untracked++;
-      } else {
-        if (x !== " " && x !== "?") staged++;
-        if (y !== " " && y !== "?") modified++;
+      } else if (line.length >= 4) {
+        const x = line[2];
+        const y = line[3];
+        if (x !== "." && x !== " ") staged++;
+        if (y !== "." && y !== " ") modified++;
       }
     }
   }
@@ -629,7 +628,7 @@ export async function pullChanges(
 export async function getLog(
   name: string,
   limit = 10
-): Promise<GitLogEntry[] | { error: string }> {
+): Promise<CommitInfo[] | { error: string }> {
   const nameErr = validateProjectName(name);
   if (nameErr) return { error: nameErr };
 
@@ -645,7 +644,7 @@ export async function getLog(
     return { error: result.stderr.trim() || "Log failed" };
   }
 
-  const entries: GitLogEntry[] = [];
+  const entries: CommitInfo[] = [];
   for (const line of result.stdout.trim().split("\n")) {
     if (!line) continue;
     const parsed = parseCommitLine(line);

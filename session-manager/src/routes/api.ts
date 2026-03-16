@@ -44,12 +44,10 @@ export function handleCreateSession(
   req: IncomingMessage,
   res: ServerResponse
 ): void {
-  let body = "";
-  req.on("data", (chunk: Buffer) => (body += chunk));
-  req.on("end", () => {
-    try {
-      const { name } = JSON.parse(body);
-      if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) {
+  readBody(req)
+    .then((body) => {
+      const { name } = body;
+      if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
         jsonResponse(res, 400, { error: "Invalid session name" });
         return;
       }
@@ -58,10 +56,10 @@ export function handleCreateSession(
       setTimeout(() => {
         jsonResponse(res, 201, { name, url: `/s/${name}/`, port });
       }, 500);
-    } catch {
+    })
+    .catch(() => {
       jsonResponse(res, 400, { error: "Invalid request" });
-    }
-  });
+    });
 }
 
 export function handleDeleteSession(

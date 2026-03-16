@@ -11,10 +11,19 @@ export function authCookieHeader(): string {
   return `${AUTH_COOKIE}=${authTokenValue()}; Path=/; HttpOnly; SameSite=Lax`;
 }
 
-export function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+export function readBody(req: IncomingMessage, maxBytes = 1_048_576): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     let body = "";
-    req.on("data", (chunk: Buffer) => (body += chunk));
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        req.destroy();
+        reject(new Error("Request body too large"));
+        return;
+      }
+      body += chunk;
+    });
     req.on("end", () => {
       try {
         resolve(JSON.parse(body));
@@ -65,16 +74,15 @@ export function requireJsonContentType(
   return true;
 }
 
-export function checkUpgradeAuth(req: IncomingMessage): boolean {
-  const auth = req.headers.authorization;
+export function checkBunAuth(req: Request): boolean {
+  const auth = req.headers.get("authorization");
   if (auth && auth.startsWith("Basic ")) {
-    const [user, pass] = Buffer.from(auth.split(" ")[1], "base64")
-      .toString()
-      .split(":");
+    const decoded = Buffer.from(auth.split(" ")[1], "base64").toString();
+    const [user, pass] = decoded.split(":");
     if (user === TTYD_USER && pass === TTYD_PASS) return true;
   }
 
-  const cookies = req.headers.cookie || "";
+  const cookies = req.headers.get("cookie") || "";
   const match = cookies.match(/(?:^|;\s*)acfs_ws=([^;]+)/);
   if (match && match[1] === authTokenValue()) return true;
 
