@@ -276,14 +276,14 @@ export function startServer(): void {
             headers: req.headers,
             body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
           });
-          const body = await nodeResp.text();
-          const headers = new Headers(nodeResp.headers);
-          headers.delete("transfer-encoding");
-          headers.set("content-length", String(Buffer.byteLength(body)));
-          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.length} chars, cl=${headers.get("content-length")}, te=${headers.get("transfer-encoding")}, ct=${headers.get("content-type")}`);
+          const body = await nodeResp.blob();
+          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.size} bytes`);
           return new Response(body, {
             status: nodeResp.status,
-            headers,
+            headers: {
+              "content-type": nodeResp.headers.get("content-type") || "text/html",
+              "set-cookie": nodeResp.headers.get("set-cookie") || "",
+            },
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Internal proxy error";
