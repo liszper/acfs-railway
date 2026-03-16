@@ -144,11 +144,13 @@ export function SessionsPanel() {
 
   const createSession = async (name: string, project: ProjectRecord | null) => {
     await apiPost("/api/sessions", { name, cwd: project?.path });
-    await refresh();
     openTab(name, project?.path);
     if (project) {
       try { await apiPost(`/api/pm/projects/${project.id}/sessions/${name}`); } catch {}
     }
+    // Refresh immediately, then again after a short delay to catch the new session
+    await refresh();
+    setTimeout(refresh, 1000);
   };
 
   // If a session is selected, show its detail view
