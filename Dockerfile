@@ -81,6 +81,12 @@ RUN (git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_usage
     && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
     && cd /build && rm -rf caut) || true
 
+# JFP — JeffreysPrompts CLI (agent-optimized prompt browser)
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/jeffreysprompts.com.git jfp \
+    && cd jfp && cargo build --release \
+    && cp target/release/jfp /out/ \
+    && cd /build && rm -rf jfp) || true
+
 # ===== Stage 3: Final image =====
 FROM ubuntu:24.04
 
@@ -217,7 +223,9 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g wrangler 2>/dev/null || echo "wrangler: install skipped"
-RUN npm install -g supabase@latest 2>/dev/null || echo "supabase: install skipped"
+RUN curl -fsSL "https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz" \
+    | tar -xz -C /usr/local/bin supabase \
+    || echo "supabase: install skipped"
 RUN npm install -g vercel 2>/dev/null || echo "vercel: install skipped"
 
 # HashiCorp Vault
@@ -226,8 +234,7 @@ RUN curl -fsSL "https://releases.hashicorp.com/vault/1.17.2/vault_1.17.2_linux_a
     || echo "vault: install skipped"
 
 # Railway CLI
-RUN curl -fsSL https://raw.githubusercontent.com/railwayapp/cli/master/install.sh | bash \
-    || echo "railway: install skipped"
+RUN npm install -g @railway/cli 2>/dev/null || echo "railway: install skipped"
 
 # ============================================================
 # Phase 7+8: Dicklesworthstone Stack — Go + Rust tool binaries
@@ -250,8 +257,13 @@ RUN mkdir -p /opt/acfs
 # We run as root with --easy-mode/--yes and DEST=/usr/local/bin.
 
 # MCP Agent Mail — inter-agent messaging
-RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/mcp_agent_mail/main/install.sh \
-    | DEST=/usr/local/bin bash -s -- --yes \
+# Install script lives under scripts/; --no-start avoids launching the server
+# at build time; --skip-beads/--skip-bv since those are built in earlier stages.
+# After install, create an `am` wrapper so the command is on PATH.
+RUN curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/mcp_agent_mail/main/scripts/install.sh" \
+    | bash -s -- --yes --no-start --skip-beads --skip-bv --dir /opt/acfs/mcp_agent_mail \
+    && printf '#!/bin/sh\ncd /opt/acfs/mcp_agent_mail && exec scripts/run_server_with_token.sh "$@"\n' \
+       > /usr/local/bin/am && chmod +x /usr/local/bin/am \
     || echo "mcp-agent-mail: install skipped"
 
 # DCG — destructive command guard (install script is more reliable than cargo build)
@@ -281,7 +293,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/coding_agent_
 
 # Brenner Bot — research session manager
 RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/brenner_bot/main/install.sh \
-    | DEST=/usr/local/bin bash -s -- --yes \
+    | bash -s -- --system --easy-mode \
     || echo "brenner: install skipped"
 
 # CSCTF — chat shared conversation to file
@@ -289,9 +301,10 @@ RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/chat_shared_c
     | DEST=/usr/local/bin bash -s -- --yes \
     || echo "csctf: install skipped"
 
-# MDWB — markdown web browser
+# MDWB — markdown web browser (Python/uv project; skip Playwright browsers & sys deps)
 RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/markdown_web_browser/main/install.sh \
-    | bash -s -- --yes --dir=/opt/acfs/mdwb \
+    | bash -s -- --yes --no-deps --no-browsers --dir=/opt/acfs/mdwb \
+    && ln -sf /opt/acfs/mdwb/mdwb /usr/local/bin/mdwb \
     || echo "mdwb: install skipped"
 
 # S2P — source to prompt TUI
