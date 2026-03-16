@@ -271,10 +271,17 @@ export function startServer(): void {
         // --- Everything else (dashboard, API, session pages): proxy to Node ---
         const targetUrl = `http://127.0.0.1:${nodePort}${url.pathname}${url.search}`;
         try {
-          return await fetch(targetUrl, {
+          const nodeResp = await fetch(targetUrl, {
             method: req.method,
             headers: req.headers,
             body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
+          });
+          // Re-wrap the response — returning fetch() Response directly from
+          // Bun.serve can lose the body for proxied/streamed responses.
+          const body = await nodeResp.arrayBuffer();
+          return new Response(body, {
+            status: nodeResp.status,
+            headers: nodeResp.headers,
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Internal proxy error";
