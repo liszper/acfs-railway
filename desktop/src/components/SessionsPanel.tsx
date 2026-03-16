@@ -133,7 +133,11 @@ export function SessionsPanel() {
   const claimed = new Set<string>();
   const groups: { project: ProjectRecord | null; sessions: SessionInfo[] }[] = [];
   for (const p of projects) {
-    const matching = sessions.filter((s) => s.name === p.name || s.name.startsWith(p.name + "-"));
+    const pLower = p.name.toLowerCase();
+    const matching = sessions.filter((s) => {
+      const sLower = s.name.toLowerCase();
+      return sLower === pLower || sLower.startsWith(pLower + "-");
+    });
     matching.forEach((s) => claimed.add(s.name));
     groups.push({ project: p, sessions: matching });
   }
@@ -245,7 +249,7 @@ function Group({ project, sessions, openNames, openTab, createSession, onSelect 
           {sessions.map((s) => {
             const isOpen = openNames.has(s.name);
             const { claude, codex, gemini } = s.agentCounts;
-            const shortName = project && s.name.startsWith(project.name + "-")
+            const shortName = project && s.name.toLowerCase().startsWith(project.name.toLowerCase() + "-")
               ? s.name.slice(project.name.length + 1) : s.name;
 
             return (
