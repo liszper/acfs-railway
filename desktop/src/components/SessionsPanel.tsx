@@ -143,7 +143,7 @@ export function SessionsPanel() {
   }
 
   const createSession = async (name: string, project: ProjectRecord | null) => {
-    await apiPost("/api/sessions", { name });
+    await apiPost("/api/sessions", { name, cwd: project?.path });
     await refresh();
     openTab(name, project?.path);
     if (project) {

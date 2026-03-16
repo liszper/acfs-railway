@@ -46,12 +46,13 @@ export function handleCreateSession(
 ): void {
   readBody(req)
     .then((body) => {
-      const { name } = body;
+      const { name, cwd } = body;
       if (!name || typeof name !== "string" || !/^[a-zA-Z0-9_-]+$/.test(name)) {
         jsonResponse(res, 400, { error: "Invalid session name" });
         return;
       }
-      ensureTmuxSession(name);
+      const sessionCwd = typeof cwd === "string" ? cwd : undefined;
+      ensureTmuxSession(name, sessionCwd);
       const port = startTtydForSession(name);
       setTimeout(() => {
         jsonResponse(res, 201, { name, url: `/s/${name}/`, port });

@@ -88,7 +88,7 @@ export function getTmuxSessions(): SessionInfo[] {
   }
 }
 
-export function ensureTmuxSession(name: string): boolean {
+export function ensureTmuxSession(name: string, cwd?: string): boolean {
   assertSafeName(name);
   try {
     execSync(
@@ -96,9 +96,10 @@ export function ensureTmuxSession(name: string): boolean {
     );
     return true;
   } catch {
+    const dir = cwd || "/data/projects";
     try {
       execSync(
-        `su - ${ACFS_USER} -c "tmux new-session -d -s '${name}' -c /data/projects" 2>/dev/null`
+        `su - ${ACFS_USER} -c "tmux new-session -d -s '${name}' -c '${dir}'" 2>/dev/null`
       );
       return true;
     } catch {
