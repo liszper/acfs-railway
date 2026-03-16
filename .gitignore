@@ -30,3 +30,6 @@ dist/
 .DS_Store
 Thumbs.db
 audit/
+desktop/node_modules/
+desktop/dist/
+desktop/src-tauri/target/

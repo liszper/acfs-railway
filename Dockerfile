@@ -112,7 +112,7 @@ ENV ACFS_USER=dev \
 # ============================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl git ca-certificates unzip tar xz-utils jq build-essential \
-    gnupg wget sudo zsh locales procps htop vim nano tmux tree openssh-client \
+    gnupg wget sudo zsh locales procps htop vim nano tmux tree openssh-client openssh-server \
     libssl-dev pkg-config libsqlite3-dev \
     python3 python3-pip python3-venv \
     && locale-gen en_US.UTF-8 \
@@ -760,6 +760,31 @@ stderr_logfile_maxbytes=0
 priority=300
 EOF
 fi
+
+# ── SSH server setup ──────────────────────────────────────────────────────────
+mkdir -p /run/sshd
+echo "${TARGET_USER}:${TTYD_PASS:-changeme}" | chpasswd
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+echo "Port 2222" >> /etc/ssh/sshd_config
+echo "AllowUsers ${TARGET_USER}" >> /etc/ssh/sshd_config
+
+cat > /etc/supervisor/conf.d/sshd.conf << EOF
+[program:sshd]
+command=/usr/sbin/sshd -D -e -p 2222
+autostart=true
+autorestart=true
+startsecs=1
+startretries=5
+stopsignal=TERM
+stdout_logfile=/dev/stdout
+stdout_logfile_maxbytes=0
+stderr_logfile=/dev/stderr
+stderr_logfile_maxbytes=0
+priority=10
+EOF
+
+# Generate host keys if missing
+ssh-keygen -A 2>/dev/null || true
 
 echo "=== ACFS: Starting supervised services ==="
 exec supervisord -n -c /etc/supervisor/supervisord.conf
