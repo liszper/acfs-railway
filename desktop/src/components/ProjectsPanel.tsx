@@ -161,16 +161,30 @@ export function ProjectsPanel() {
   };
 
   const [adding, setAdding] = useState(false);
-  const [newProject, setNewProject] = useState({ name: "", path: "/data/projects/", description: "" });
+  const [cloneUrl, setCloneUrl] = useState("");
+  const [cloning, setCloning] = useState(false);
+  const [cloneError, setCloneError] = useState("");
 
-  const addProject = async () => {
-    if (!newProject.name.trim() || !newProject.path.trim()) return;
+  const cloneProject = async () => {
+    const url = cloneUrl.trim();
+    if (!url) return;
+    setCloning(true);
+    setCloneError("");
     try {
-      await apiPost("/api/pm/projects", newProject);
-      setNewProject({ name: "", path: "/data/projects/", description: "" });
-      setAdding(false);
-      refresh();
-    } catch {}
+      // Use the existing clone API — it handles github shorthand, derives name, clones to /data/projects/
+      const result = await apiPost<{ ok: boolean; name: string; error?: string }>("/api/projects/clone", { url });
+      if (result.ok) {
+        // Sync PM database to pick up the new clone
+        await apiPost("/api/pm/sync");
+        setCloneUrl("");
+        setAdding(false);
+        refresh();
+      } else {
+        setCloneError(result.error || "Clone failed");
+      }
+    } catch (e) {
+      setCloneError(String(e));
+    } finally { setCloning(false); }
   };
 
   if (!available) {
@@ -228,27 +242,18 @@ export function ProjectsPanel() {
         <div className="project-add-form">
           <input
             className="project-add-input"
-            value={newProject.name}
-            onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-            placeholder="Project name"
+            value={cloneUrl}
+            onChange={(e) => { setCloneUrl(e.target.value); setCloneError(""); }}
+            placeholder="owner/repo or https://github.com/..."
+            onKeyDown={(e) => e.key === "Enter" && cloneProject()}
             autoFocus
           />
-          <input
-            className="project-add-input"
-            value={newProject.path}
-            onChange={(e) => setNewProject({ ...newProject, path: e.target.value })}
-            placeholder="/data/projects/my-app"
-          />
-          <input
-            className="project-add-input"
-            value={newProject.description}
-            onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-            placeholder="Description (optional)"
-            onKeyDown={(e) => e.key === "Enter" && addProject()}
-          />
+          {cloneError && <div className="project-add-error">{cloneError}</div>}
           <div className="project-add-actions">
-            <button className="project-add-btn" onClick={addProject} disabled={!newProject.name.trim() || !newProject.path.trim()}>Add</button>
-            <button className="project-add-cancel" onClick={() => setAdding(false)}>Cancel</button>
+            <button className="project-add-btn" onClick={cloneProject} disabled={!cloneUrl.trim() || cloning}>
+              {cloning ? "Cloning..." : "Clone"}
+            </button>
+            <button className="project-add-cancel" onClick={() => { setAdding(false); setCloneError(""); }}>Cancel</button>
           </div>
         </div>
       )}
