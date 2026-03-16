@@ -318,6 +318,85 @@ body {
 .session-item:hover { border-color: var(--accent); }
 .session-item.open { border-color: var(--green); border-left: 3px solid var(--green); }
 
+/* Spawn UI */
+.spawn-section { margin-bottom: 0.5rem; }
+.spawn-label { display: block; font-size: 0.65rem; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.03em; }
+.spawn-select {
+  width: 100%; padding: 0.35rem 0.5rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-size: 0.75rem; cursor: pointer;
+}
+.spawn-select:focus { outline: none; border-color: var(--accent); }
+.spawn-input {
+  width: 100%; padding: 0.35rem 0.5rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-size: 0.75rem;
+}
+.spawn-input:focus { outline: none; border-color: var(--accent); }
+
+.spawn-mode-tabs { display: flex; gap: 2px; margin-bottom: 0.5rem; }
+.spawn-mode-btn {
+  flex: 1; padding: 0.3rem 0;
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-muted); cursor: pointer; font-size: 0.65rem;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.spawn-mode-btn:hover { color: var(--text); }
+.spawn-mode-btn.active { color: var(--accent); border-color: var(--accent); }
+
+.spawn-btn {
+  width: 100%; padding: 0.4rem;
+  background: var(--accent); color: #fff; border: none; border-radius: 5px;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; margin-bottom: 0.5rem;
+}
+.spawn-btn:hover { opacity: 0.9; }
+.spawn-btn:disabled { opacity: 0.4; cursor: default; }
+
+.recipe-grid { display: flex; flex-direction: column; gap: 3px; margin-bottom: 0.5rem; }
+.recipe-card {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+  cursor: pointer; text-align: left;
+}
+.recipe-card:hover { border-color: var(--accent); }
+.recipe-card:disabled { opacity: 0.4; cursor: default; }
+.recipe-name { font-size: 0.75rem; font-weight: 500; color: var(--text); }
+.recipe-agents { font-size: 0.6rem; color: var(--text-muted); }
+
+.custom-spawn { margin-bottom: 0.5rem; }
+.agent-counters { display: flex; gap: 0.4rem; margin-bottom: 0.4rem; }
+.agent-counter { flex: 1; text-align: center; }
+.agent-label { display: block; font-size: 0.6rem; font-weight: 700; margin-bottom: 3px; }
+.counter-controls { display: flex; align-items: center; justify-content: center; gap: 0; }
+.counter-controls button {
+  width: 22px; height: 22px;
+  background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); cursor: pointer; font-size: 0.75rem; font-weight: 700;
+}
+.counter-controls button:first-child { border-radius: 4px 0 0 4px; }
+.counter-controls button:last-child { border-radius: 0 4px 4px 0; }
+.counter-controls button:hover { background: var(--bg-hover); }
+.counter-controls span {
+  width: 24px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  font-size: 0.75rem; font-weight: 600; color: var(--text);
+}
+.spawn-prompt {
+  width: 100%; padding: 0.3rem 0.4rem;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-size: 0.7rem; font-family: inherit;
+  resize: vertical; min-height: 28px; margin-bottom: 0.4rem;
+}
+.spawn-prompt:focus { outline: none; border-color: var(--accent); }
+
+.session-divider {
+  font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.04em; margin: 0.5rem 0 0.35rem; padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
 .session-main { flex: 1; min-width: 0; }
 
 .session-header { display: flex; align-items: center; gap: 0.35rem; margin-bottom: 2px; }

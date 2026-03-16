@@ -4,13 +4,14 @@ import { invoke } from "@tauri-apps/api/core";
 interface TerminalTab {
   id: string;
   sessionName: string;
+  projectPath?: string;
   status: "connecting" | "connected" | "disconnected";
 }
 
 interface TerminalStore {
   tabs: TerminalTab[];
   activeTabId: string | null;
-  openTab: (sessionName: string) => Promise<void>;
+  openTab: (sessionName: string, projectPath?: string) => Promise<void>;
   reopenTab: (sessionName: string, oldTabId: string) => Promise<void>;
   closeTab: (tabId: string) => void;
   setActive: (tabId: string) => void;
@@ -22,31 +23,31 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   tabs: [],
   activeTabId: null,
 
-  openTab: async (sessionName) => {
+  openTab: async (sessionName, projectPath) => {
     const existing = get().tabs.find((t) => t.sessionName === sessionName);
     if (existing) {
       set({ activeTabId: existing.id });
       return;
     }
 
-    // Add tab immediately in connecting state
     const tempId = `pending-${Date.now()}`;
     set((s) => ({
-      tabs: [...s.tabs, { id: tempId, sessionName, status: "connecting" }],
+      tabs: [...s.tabs, { id: tempId, sessionName, projectPath, status: "connecting" }],
       activeTabId: tempId,
     }));
 
     try {
-      const tabId = await invoke<string>("terminal_open", { sessionName });
-      // Replace temp tab with real one
+      const tabId = await invoke<string>("terminal_open", {
+        sessionName,
+        projectPath: projectPath || null,
+      });
       set((s) => ({
         tabs: s.tabs.map((t) =>
-          t.id === tempId ? { id: tabId, sessionName, status: "connected" } : t
+          t.id === tempId ? { id: tabId, sessionName, projectPath, status: "connected" } : t
         ),
         activeTabId: s.activeTabId === tempId ? tabId : s.activeTabId,
       }));
-    } catch (e) {
-      // Mark as disconnected, don't remove — user can retry
+    } catch {
       set((s) => ({
         tabs: s.tabs.map((t) =>
           t.id === tempId ? { ...t, status: "disconnected" } : t
@@ -56,6 +57,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   reopenTab: async (sessionName, oldTabId) => {
+    const tab = get().tabs.find((t) => t.id === oldTabId);
     set((s) => ({
       tabs: s.tabs.map((t) =>
         t.id === oldTabId ? { ...t, status: "connecting" } : t
@@ -63,10 +65,13 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     }));
 
     try {
-      const tabId = await invoke<string>("terminal_open", { sessionName });
+      const tabId = await invoke<string>("terminal_open", {
+        sessionName,
+        projectPath: tab?.projectPath || null,
+      });
       set((s) => ({
         tabs: s.tabs.map((t) =>
-          t.id === oldTabId ? { id: tabId, sessionName, status: "connected" } : t
+          t.id === oldTabId ? { id: tabId, sessionName, projectPath: tab?.projectPath, status: "connected" } : t
         ),
         activeTabId: s.activeTabId === oldTabId ? tabId : s.activeTabId,
       }));
@@ -100,7 +105,6 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
 
   clearAll: () => {
     const { tabs } = get();
-    // Mark all as disconnected but keep them (for reconnection)
     set({
       tabs: tabs.map((t) => ({ ...t, status: "disconnected" as const })),
     });

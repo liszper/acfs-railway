@@ -56,15 +56,20 @@ impl AppState {
         &self,
         app: tauri::AppHandle,
         session_name: String,
+        project_path: Option<String>,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         let ssh = self.ssh.read().await;
         let ssh = ssh.as_ref().ok_or("Not connected")?;
 
         let tab_id = uuid::Uuid::new_v4().to_string();
+        let start_dir = project_path
+            .as_deref()
+            .unwrap_or("/data/projects");
         let cmd = format!(
-            "tmux attach-session -t {} 2>/dev/null || tmux new-session -s {}",
+            "tmux attach-session -t {} 2>/dev/null || tmux new-session -s {} -c {}",
             shell_escape(&session_name),
             shell_escape(&session_name),
+            shell_escape(start_dir),
         );
 
         let terminal = TerminalSession::start(ssh, &tab_id, &cmd, app).await?;

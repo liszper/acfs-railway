@@ -59,9 +59,10 @@ async fn terminal_open(
     state: tauri::State<'_, AppState>,
     app: tauri::AppHandle,
     session_name: String,
+    project_path: Option<String>,
 ) -> Result<String, String> {
     state
-        .open_terminal(app, session_name)
+        .open_terminal(app, session_name, project_path)
         .await
         .map_err(|e| e.to_string())
 }
