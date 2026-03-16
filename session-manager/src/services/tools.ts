@@ -8,15 +8,15 @@ const TOOL_LIST = [
   // AI agents
   "claude", "codex", "gemini", "opencode",
   // Multi-agent orchestration
-  "ntm", "slb", "am",
+  "ntm", "slb", "am", "caam",
   // Code quality & safety
   "dcg", "ubs", "br", "bv", "pt",
   // Agent workflow
-  "cass", "caut", "ms", "jfp", "rano",
+  "cass", "caut", "ms", "jfp", "rano", "cm",
   // Utilities
   "sg", "rg", "bat", "fd", "eza", "delta", "fzf", "zoxide", "lazygit", "atuin",
   // Script tools
-  "apr", "ru", "brenner", "giil", "mdwb", "s2p", "aadc", "toon",
+  "apr", "ru", "brenner", "giil", "csctf", "mdwb", "s2p", "aadc", "toon",
   // Cloud CLIs
   "gh", "railway", "wrangler", "supabase", "vercel", "vault",
   // IDE & LSP

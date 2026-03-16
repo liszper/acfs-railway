@@ -11,14 +11,19 @@ FROM golang:1.24.4-bookworm AS go-tools
 WORKDIR /build
 RUN mkdir -p /out
 
+# NTM — multi-agent tmux orchestrator
 RUN git clone --depth 1 https://github.com/Dicklesworthstone/ntm.git ntm \
     && cd ntm && go build -o /out/ntm ./cmd/ntm \
     && cd /build && rm -rf ntm
 
-RUN git clone --depth 1 https://github.com/Dicklesworthstone/simultaneous_launch_button.git slb \
-    && cd slb && go build -o /out/slb ./cmd/slb \
-    && cd /build && rm -rf slb
+# SLB — two-person rule safety (use goreleaser prebuilt binary)
+RUN curl -fsSL "https://github.com/Dicklesworthstone/simultaneous_launch_button/releases/latest/download/slb_$(curl -fsSL https://api.github.com/repos/Dicklesworthstone/simultaneous_launch_button/releases/latest | grep tag_name | cut -d'"' -f4 | sed 's/^v//')_linux_amd64.tar.gz" \
+    | tar -xz -C /out/ slb 2>/dev/null \
+    || (git clone --depth 1 https://github.com/Dicklesworthstone/simultaneous_launch_button.git slb \
+        && cd slb && go build -o /out/slb ./cmd/slb \
+        && cd /build && rm -rf slb)
 
+# BV — graph-aware triage engine for Beads
 RUN git clone --depth 1 https://github.com/Dicklesworthstone/beads_viewer.git bv \
     && cd bv && go build -o /out/bv ./cmd/bv \
     && cd /build && rm -rf bv
@@ -30,36 +35,21 @@ RUN mkdir -p /out
 
 RUN cargo install ast-grep --locked 2>/dev/null && cp /usr/local/cargo/bin/sg /out/ || true
 
-# beads_rust — binary name is "br" (defined in [[bin]] in Cargo.toml)
-RUN git clone --depth 1 https://github.com/Dicklesworthstone/beads_rust.git beads \
+# beads_rust — binary name is "br" (defined via [[bin]] in Cargo.toml)
+RUN (git clone --depth 1 https://github.com/Dicklesworthstone/beads_rust.git beads \
     && cd beads && cargo build --release \
-    && cp target/release/br /out/ 2>/dev/null \
-    || (find target/release -maxdepth 1 -type f -executable ! -name "*.d" -name "br*" -exec cp {} /out/ \;) \
-    ; cd /build && rm -rf beads
+    && cp target/release/br /out/ \
+    && cd /build && rm -rf beads) || true
 
 RUN (git clone --depth 1 https://github.com/Dicklesworthstone/meta_skill.git ms \
     && cd ms && cargo build --release \
     && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
     && cd /build && rm -rf ms) || true
 
-# process_triage — workspace project, binary is pt-bundle → renamed to pt
-RUN git clone --depth 1 https://github.com/Dicklesworthstone/process_triage.git pt \
-    && cd pt && cargo build --release -p pt-bundle \
-    && (cp target/release/pt-bundle /out/pt 2>/dev/null || cp target/release/pt /out/pt 2>/dev/null \
-        || find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \;) \
-    ; cd /build && rm -rf pt
-
 RUN (git clone --depth 1 https://github.com/Dicklesworthstone/coding_agent_session_search.git cass \
     && cd cass && cargo build --release \
     && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
     && cd /build && rm -rf cass) || true
-
-# DCG — repo is destructive_command_guard, binary name is dcg
-RUN git clone --depth 1 https://github.com/Dicklesworthstone/destructive_command_guard.git dcg \
-    && cd dcg && cargo build --release \
-    && cp target/release/dcg /out/ 2>/dev/null \
-    || (find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \;) \
-    ; cd /build && rm -rf dcg
 
 RUN (git clone --depth 1 https://github.com/Dicklesworthstone/xf.git xf \
     && cd xf && cargo build --release \
@@ -75,13 +65,6 @@ RUN (git clone --depth 1 https://github.com/Dicklesworthstone/rano.git rano \
     && cd rano && cargo build --release \
     && find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \; \
     && cd /build && rm -rf rano) || true
-
-# JFP (jeffreysprompts.com) — now a Rust project
-RUN git clone --depth 1 https://github.com/Dicklesworthstone/jeffreysprompts.com.git jfp \
-    && cd jfp && cargo build --release \
-    && (cp target/release/jfp /out/ 2>/dev/null \
-        || find target/release -maxdepth 1 -type f -executable ! -name "*.d" -exec cp {} /out/ \;) \
-    ; cd /build && rm -rf jfp
 
 RUN (git clone --depth 1 https://github.com/Dicklesworthstone/rust_proxy.git rp \
     && cd rp && cargo build --release \
@@ -262,19 +245,61 @@ RUN cp /opt/gopath/bin/* /usr/local/bin/ 2>/dev/null || true
 # ============================================================
 RUN mkdir -p /opt/acfs
 
-# MCP Agent Mail — inter-agent messaging (Python/FastMCP)
-# Repo uses underscores: mcp_agent_mail
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/mcp_agent_mail.git /opt/acfs/mcp-agent-mail \
-    && cd /opt/acfs/mcp-agent-mail \
-    && uv venv .venv && .venv/bin/pip install -e . \
-    && ln -sf /opt/acfs/mcp-agent-mail/.venv/bin/am /usr/local/bin/am 2>/dev/null) \
+# ── Tools with install scripts (upstream-blessed method) ──
+# Each repo's install.sh handles deps, builds, and PATH setup correctly.
+# We run as root with --easy-mode/--yes and DEST=/usr/local/bin.
+
+# MCP Agent Mail — inter-agent messaging
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/mcp_agent_mail/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --yes \
     || echo "mcp-agent-mail: install skipped"
 
-# Automated Plan Reviser Pro — spec refinement (Bash)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/automated_plan_reviser_pro.git /opt/acfs/apr \
-    && chmod +x /opt/acfs/apr/apr \
-    && ln -sf /opt/acfs/apr/apr /usr/local/bin/apr) \
+# DCG — destructive command guard (install script is more reliable than cargo build)
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/destructive_command_guard/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --easy-mode \
+    || echo "dcg: install skipped (will use Rust-built binary)"
+
+# Process Triage — zombie process finder
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/process_triage/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --easy-mode \
+    || echo "pt: install skipped (will use Rust-built binary)"
+
+# APR — automated plan reviser
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/automated_plan_reviser_pro/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --easy-mode \
     || echo "apr: install skipped"
+
+# CM — CASS memory system (procedural memory for agents)
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/cass_memory_system/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --yes \
+    || echo "cm: install skipped"
+
+# CAAM — coding agent account manager
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/coding_agent_account_manager/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --yes \
+    || echo "caam: install skipped"
+
+# Brenner Bot — research session manager
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/brenner_bot/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --yes \
+    || echo "brenner: install skipped"
+
+# CSCTF — chat shared conversation to file
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/chat_shared_conversation_to_file/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --yes \
+    || echo "csctf: install skipped"
+
+# MDWB — markdown web browser
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/markdown_web_browser/main/install.sh \
+    | bash -s -- --yes --dir=/opt/acfs/mdwb \
+    || echo "mdwb: install skipped"
+
+# S2P — source to prompt TUI
+RUN curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/source_to_prompt_tui/main/install.sh \
+    | DEST=/usr/local/bin bash -s -- --skip-cass \
+    || echo "s2p: install skipped"
+
+# ── Tools without install scripts (manual install) ──
 
 # Ultimate Bug Scanner — AST-aware scanning (Bash, needs ast-grep)
 RUN (git clone --depth 1 https://github.com/Dicklesworthstone/ultimate_bug_scanner.git /opt/acfs/ubs \
@@ -288,33 +313,11 @@ RUN (git clone --depth 1 https://github.com/Dicklesworthstone/repo_updater.git /
     && ln -sf /opt/acfs/ru/ru /usr/local/bin/ru) \
     || echo "ru: install skipped"
 
-# Brenner Bot — research session manager (TS/Bun monorepo)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/brenner_bot.git /opt/acfs/brenner \
-    && cd /opt/acfs/brenner && bun install \
-    && echo '#!/bin/sh\nexec bun run /opt/acfs/brenner/src/index.ts "$@"' > /usr/local/bin/brenner \
-    && chmod +x /usr/local/bin/brenner) \
-    || echo "brenner: install skipped"
-
 # GIIL — download images from URLs (Bash)
 RUN (git clone --depth 1 https://github.com/Dicklesworthstone/giil.git /opt/acfs/giil \
     && chmod +x /opt/acfs/giil/giil \
     && ln -sf /opt/acfs/giil/giil /usr/local/bin/giil) \
     || echo "giil: install skipped"
-
-# Markdown Web Browser — web browsing for agents (Python)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/markdown_web_browser.git /opt/acfs/mdwb \
-    && cd /opt/acfs/mdwb \
-    && uv venv .venv && .venv/bin/pip install -e . \
-    && ln -sf /opt/acfs/mdwb/.venv/bin/mdwb /usr/local/bin/mdwb 2>/dev/null \
-    || echo '#!/bin/sh\nexec /opt/acfs/mdwb/.venv/bin/python -m markdown_web_browser "$@"' > /usr/local/bin/mdwb \
-    && chmod +x /usr/local/bin/mdwb) \
-    || echo "mdwb: install skipped"
-
-# S2P — source to prompt TUI (TS/Bun — needs bun run build:bin)
-RUN (git clone --depth 1 https://github.com/Dicklesworthstone/source_to_prompt_tui.git /opt/acfs/s2p \
-    && cd /opt/acfs/s2p && bun install && bun run build:bin \
-    && ln -sf /opt/acfs/s2p/dist/s2p /usr/local/bin/s2p) \
-    || echo "s2p: install skipped"
 
 # Go/Rust build caches no longer accumulate here (multi-stage build)
 RUN rm -rf /tmp/*
