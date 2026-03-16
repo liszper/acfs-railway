@@ -20,7 +20,7 @@ export function Terminal({ tabId }: Props) {
     const term = new XTerminal({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: "'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
+      fontFamily: "'JetBrainsMono NF', 'MesloLGS NF', 'Hack Nerd Font', 'SF Mono', 'Menlo', monospace",
       theme: {
         background: "#0d1117",
         foreground: "#c9d1d9",

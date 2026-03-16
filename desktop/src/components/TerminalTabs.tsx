@@ -1,8 +1,14 @@
 import { useTerminalStore } from "../store/terminals";
 import { Terminal } from "./Terminal";
 
+const STATUS_ICONS: Record<string, string> = {
+  connecting: "◌",
+  connected: "",
+  disconnected: "⊘",
+};
+
 export function TerminalTabs() {
-  const { tabs, activeTabId, setActive, closeTab } = useTerminalStore();
+  const { tabs, activeTabId, setActive, closeTab, reopenTab } = useTerminalStore();
 
   if (tabs.length === 0) {
     return (
@@ -19,9 +25,14 @@ export function TerminalTabs() {
         {tabs.map((tab) => (
           <div
             key={tab.id}
-            className={`tab ${tab.id === activeTabId ? "active" : ""}`}
+            className={`tab ${tab.id === activeTabId ? "active" : ""} tab-${tab.status}`}
             onClick={() => setActive(tab.id)}
           >
+            {tab.status !== "connected" && (
+              <span className={`tab-status tab-status-${tab.status}`}>
+                {STATUS_ICONS[tab.status]}
+              </span>
+            )}
             <span className="tab-name">{tab.sessionName}</span>
             <button
               className="tab-close"
@@ -35,7 +46,25 @@ export function TerminalTabs() {
       <div className="tab-content">
         {tabs.map((tab) => (
           <div key={tab.id} className="terminal-wrapper" style={{ display: tab.id === activeTabId ? "block" : "none" }}>
-            <Terminal tabId={tab.id} />
+            {tab.status === "connected" && <Terminal tabId={tab.id} />}
+            {tab.status === "connecting" && (
+              <div className="terminal-status-overlay">
+                <span className="spinner" />
+                <span>Connecting to {tab.sessionName}...</span>
+              </div>
+            )}
+            {tab.status === "disconnected" && (
+              <div className="terminal-status-overlay">
+                <span className="disconnected-icon">⊘</span>
+                <span>Disconnected</span>
+                <button
+                  className="btn-reconnect"
+                  onClick={() => reopenTab(tab.sessionName, tab.id)}
+                >
+                  Reconnect
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>

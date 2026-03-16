@@ -41,3 +41,29 @@ export interface ProjectInfo {
   clean: boolean;
   lastCommit: { hash: string; shortHash: string; message: string; author: string; date: string } | null;
 }
+
+export interface ProjectRecord {
+  id: number;
+  name: string;
+  path: string;
+  description: string;
+  status: 'active' | 'archived' | 'template';
+  tags: string[];
+  remoteUrl: string | null;
+  defaultBranch: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastOpenedAt: string | null;
+  pinned: boolean;
+  stats?: { commits: number; sessions: number; lastActivity: string | null };
+}
+
+export interface ActivityRecord {
+  id: number;
+  projectId: number | null;
+  sessionName: string | null;
+  type: string;
+  summary: string;
+  detail: string;
+  createdAt: string;
+}

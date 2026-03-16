@@ -10,6 +10,20 @@ import { dashboardHTML } from "./dashboard/template.js";
 import { isNtmAvailable } from "./services/ntm.js";
 import type { WsData } from "./types.js";
 import {
+  handlePmListProjects,
+  handlePmGetProject,
+  handlePmUpdateProject,
+  handlePmDeleteProject,
+  handlePmTogglePin,
+  handlePmSync,
+  handlePmAttachSession,
+  handlePmDetachSession,
+  handlePmProjectActivity,
+  handlePmAllActivity,
+  handlePmLogActivity,
+  handlePmSessionProjects,
+} from "./routes/pm.js";
+import {
   handleListSessions,
   handleCreateSession,
   handleDeleteSession,
@@ -211,6 +225,78 @@ function routeRequest(
       handleProjectDiff(req, res, pName);
       return;
     }
+  }
+
+  // --- PM (project management) routes ---
+  if (url.pathname === "/api/pm/projects" && req.method === "GET") {
+    handlePmListProjects(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/pm/sync" && req.method === "POST") {
+    handlePmSync(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/pm/activity" && req.method === "GET") {
+    handlePmAllActivity(req, res);
+    return;
+  }
+
+  const pmSessionProjectsMatch = url.pathname.match(
+    /^\/api\/pm\/sessions\/([a-zA-Z0-9_-]+)\/projects$/
+  );
+  if (pmSessionProjectsMatch && req.method === "GET") {
+    handlePmSessionProjects(req, res, pmSessionProjectsMatch[1]);
+    return;
+  }
+
+  const pmProjectSessionMatch = url.pathname.match(
+    /^\/api\/pm\/projects\/(\d+)\/sessions\/([a-zA-Z0-9_-]+)$/
+  );
+  if (pmProjectSessionMatch && req.method === "POST") {
+    handlePmAttachSession(req, res, parseInt(pmProjectSessionMatch[1], 10), pmProjectSessionMatch[2]);
+    return;
+  }
+  if (pmProjectSessionMatch && req.method === "DELETE") {
+    handlePmDetachSession(req, res, parseInt(pmProjectSessionMatch[1], 10), pmProjectSessionMatch[2]);
+    return;
+  }
+
+  const pmProjectActivityMatch = url.pathname.match(
+    /^\/api\/pm\/projects\/(\d+)\/activity$/
+  );
+  if (pmProjectActivityMatch && req.method === "GET") {
+    handlePmProjectActivity(req, res, parseInt(pmProjectActivityMatch[1], 10));
+    return;
+  }
+  if (pmProjectActivityMatch && req.method === "POST") {
+    handlePmLogActivity(req, res, parseInt(pmProjectActivityMatch[1], 10));
+    return;
+  }
+
+  const pmProjectPinMatch = url.pathname.match(
+    /^\/api\/pm\/projects\/(\d+)\/pin$/
+  );
+  if (pmProjectPinMatch && req.method === "POST") {
+    handlePmTogglePin(req, res, parseInt(pmProjectPinMatch[1], 10));
+    return;
+  }
+
+  const pmProjectIdMatch = url.pathname.match(
+    /^\/api\/pm\/projects\/(\d+)$/
+  );
+  if (pmProjectIdMatch && req.method === "GET") {
+    handlePmGetProject(req, res, parseInt(pmProjectIdMatch[1], 10));
+    return;
+  }
+  if (pmProjectIdMatch && req.method === "PUT") {
+    handlePmUpdateProject(req, res, parseInt(pmProjectIdMatch[1], 10));
+    return;
+  }
+  if (pmProjectIdMatch && req.method === "DELETE") {
+    handlePmDeleteProject(req, res, parseInt(pmProjectIdMatch[1], 10));
+    return;
   }
 
   const sessionMatch = url.pathname.match(
