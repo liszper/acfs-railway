@@ -49,7 +49,11 @@ impl AppState {
     }
 
     pub async fn is_connected(&self) -> bool {
-        self.ssh.read().await.is_some()
+        let ssh = self.ssh.read().await;
+        match ssh.as_ref() {
+            Some(conn) => conn.is_alive().await,
+            None => false,
+        }
     }
 
     pub async fn open_terminal(

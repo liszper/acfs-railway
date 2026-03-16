@@ -1,6 +1,7 @@
 use russh::*;
 use russh_keys::ssh_key;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 pub struct SshConnection {
@@ -17,8 +18,6 @@ impl client::Handler for SshHandler {
         &mut self,
         _server_public_key: &ssh_key::PublicKey,
     ) -> Result<bool, Self::Error> {
-        // Accept all host keys (like StrictHostKeyChecking=no)
-        // TODO: implement known_hosts checking for production
         Ok(true)
     }
 }
@@ -31,6 +30,10 @@ impl SshConnection {
         password: &str,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let config = Arc::new(client::Config {
+            // Send keepalives every 15s to prevent NAT/firewall timeouts
+            keepalive_interval: Some(Duration::from_secs(15)),
+            // Disconnect if no response after 45s
+            keepalive_max: 3,
             ..Default::default()
         });
 
@@ -57,5 +60,19 @@ impl SshConnection {
         let handle = self.handle.lock().await;
         let channel = handle.channel_open_session().await?;
         Ok(channel)
+    }
+
+    /// Actually test the connection by opening and closing a channel
+    pub async fn is_alive(&self) -> bool {
+        match self.open_channel().await {
+            Ok(mut ch) => {
+                let _ = ch.close().await;
+                true
+            }
+            Err(e) => {
+                eprintln!("[ssh] health check failed: {}", e);
+                false
+            }
+        }
     }
 }

@@ -21,11 +21,10 @@ interface ConnectionStore extends ConnectionConfig {
   reconnect: () => Promise<void>;
   setOffline: () => void;
   setOnline: () => void;
-  healthCheck: () => Promise<boolean>;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 10;
-const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000, 30000]; // exponential backoff, caps at 30s
+const RECONNECT_DELAYS = [2000, 4000, 8000, 15000, 30000];
 
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let healthTimer: ReturnType<typeof setInterval> | null = null;
@@ -79,7 +78,6 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
     set({ status: "reconnecting", reconnectAttempt: attempt, error: null });
 
     try {
-      // Clean up old connection
       try { await invoke("disconnect_ssh"); } catch {}
 
       await invoke("connect_ssh", {
@@ -88,18 +86,18 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       set({ status: "connected", error: null, reconnectAttempt: 0 });
       startHealthCheck();
 
-      // Re-open terminals for all open tabs
+      // Re-open terminals
       const tabs = useTerminalStore.getState().tabs;
       for (const tab of tabs) {
-        try {
-          await useTerminalStore.getState().reopenTab(tab.sessionName, tab.id);
-        } catch {
-          // Tab will show disconnected state
+        if (tab.status === "disconnected") {
+          try {
+            await useTerminalStore.getState().reopenTab(tab.sessionName, tab.id);
+          } catch {}
         }
       }
     } catch (e) {
       const delay = RECONNECT_DELAYS[Math.min(attempt - 1, RECONNECT_DELAYS.length - 1)];
-      set({ status: "reconnecting", error: `Attempt ${attempt} failed, retrying in ${delay / 1000}s...` });
+      set({ status: "reconnecting", error: `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...` });
       scheduleReconnect(delay);
     }
   },
@@ -117,24 +115,6 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       get().reconnect();
     }
   },
-
-  healthCheck: async () => {
-    try {
-      const ok = await invoke<boolean>("connection_status");
-      if (!ok && get().status === "connected") {
-        set({ status: "reconnecting", reconnectAttempt: 0 });
-        get().reconnect();
-        return false;
-      }
-      return ok;
-    } catch {
-      if (get().status === "connected") {
-        set({ status: "reconnecting", reconnectAttempt: 0 });
-        get().reconnect();
-      }
-      return false;
-    }
-  },
 }));
 
 function scheduleReconnect(delay: number) {
@@ -150,16 +130,39 @@ function stopReconnect() {
 
 function startHealthCheck() {
   stopHealthCheck();
-  healthTimer = setInterval(() => {
-    useConnectionStore.getState().healthCheck();
-  }, 10000); // check every 10s
+  healthTimer = setInterval(async () => {
+    const { status } = useConnectionStore.getState();
+    if (status !== "connected") return;
+
+    try {
+      // Light API ping — tests both API reachability and auth
+      await invoke("api_request", { method: "GET", path: "/api/sessions", body: null });
+      // API works — connection is healthy, no action needed
+    } catch {
+      // API unreachable — check if SSH is also dead
+      console.warn("[health] API unreachable, checking SSH...");
+      try {
+        const alive = await invoke<boolean>("connection_status");
+        if (!alive) {
+          console.warn("[health] SSH dead, triggering reconnect");
+          useTerminalStore.getState().clearAll();
+          useConnectionStore.setState({ status: "reconnecting", reconnectAttempt: 0 });
+          useConnectionStore.getState().reconnect();
+        }
+      } catch {
+        console.warn("[health] SSH check failed, triggering reconnect");
+        useTerminalStore.getState().clearAll();
+        useConnectionStore.setState({ status: "reconnecting", reconnectAttempt: 0 });
+        useConnectionStore.getState().reconnect();
+      }
+    }
+  }, 30000); // every 30s
 }
 
 function stopHealthCheck() {
   if (healthTimer) { clearInterval(healthTimer); healthTimer = null; }
 }
 
-// Browser online/offline events
 if (typeof window !== "undefined") {
   window.addEventListener("offline", () => useConnectionStore.getState().setOffline());
   window.addEventListener("online", () => useConnectionStore.getState().setOnline());
