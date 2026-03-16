@@ -217,7 +217,7 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g wrangler 2>/dev/null || echo "wrangler: install skipped"
-RUN npm install -g @supabase/cli 2>/dev/null || echo "supabase: install skipped"
+RUN npm install -g supabase@latest 2>/dev/null || echo "supabase: install skipped"
 RUN npm install -g vercel 2>/dev/null || echo "vercel: install skipped"
 
 # HashiCorp Vault
