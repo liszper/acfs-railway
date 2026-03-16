@@ -766,6 +766,7 @@ fi
 mkdir -p /run/sshd
 echo "${TARGET_USER}:${TTYD_PASS:-changeme}" | chpasswd
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/KbdInteractiveAuthentication no/KbdInteractiveAuthentication yes/' /etc/ssh/sshd_config
 echo "Port 2222" >> /etc/ssh/sshd_config
 echo "AllowUsers ${TARGET_USER}" >> /etc/ssh/sshd_config
 
