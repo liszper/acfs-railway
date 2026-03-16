@@ -497,6 +497,11 @@ if [ ! -f "$TARGET_HOME/.zshrc" ]; then
     cp -a /etc/skel-dev/. "$TARGET_HOME/" 2>/dev/null || true
 fi
 
+# Always sync tmux config (volume persists old versions across deploys)
+if [ -f /etc/skel-dev/.tmux.conf ]; then
+    cp /etc/skel-dev/.tmux.conf "$TARGET_HOME/.tmux.conf" 2>/dev/null || true
+fi
+
 # Symlink /home/<user> -> /data/home/<user> for compatibility
 mkdir -p /home
 ln -sfn "$TARGET_HOME" "/home/$TARGET_USER" 2>/dev/null || true
