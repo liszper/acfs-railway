@@ -3,6 +3,7 @@ import { jsonResponse, readBody, requireJsonContentType } from "../utils/http.js
 import {
   getAllProjects,
   getProject,
+  createProject,
   updateProject,
   deleteProject,
   togglePin,
@@ -24,6 +25,25 @@ export function handlePmListProjects(
   const search = url.searchParams.get("search") || undefined;
   const pinned = url.searchParams.get("pinned") === "true" ? true : undefined;
   jsonResponse(res, 200, getAllProjects({ status, search, pinned }));
+}
+
+export function handlePmCreateProject(
+  req: IncomingMessage,
+  res: ServerResponse
+): void {
+  if (!requireJsonContentType(req, res)) return;
+  readBody(req)
+    .then((body) => {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const path = typeof body.path === "string" ? body.path.trim() : "";
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      if (!name) { jsonResponse(res, 400, { error: "name is required" }); return; }
+      if (!path) { jsonResponse(res, 400, { error: "path is required" }); return; }
+      const result = createProject(name, path, description);
+      if ("error" in result) { jsonResponse(res, 400, result); return; }
+      jsonResponse(res, 201, result);
+    })
+    .catch(() => { jsonResponse(res, 400, { error: "Invalid request body" }); });
 }
 
 export function handlePmGetProject(

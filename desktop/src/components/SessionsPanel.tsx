@@ -5,16 +5,9 @@ import type { SessionInfo, ProjectRecord } from "../api/types";
 
 const AC: Record<string, string> = { claude: "#bc8cff", codex: "#3fb950", gemini: "#58a6ff" };
 
-interface ProjectGroup {
-  project: ProjectRecord | null; // null = unassociated sessions
-  sessions: SessionInfo[];
-}
-
 export function SessionsPanel() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [spawning, setSpawning] = useState<string | null>(null); // project name being spawned for
-  const [spawnName, setSpawnName] = useState("");
   const { openTab, tabs } = useTerminalStore();
   const openNames = new Set(tabs.map((t) => t.sessionName));
 
@@ -31,35 +24,27 @@ export function SessionsPanel() {
     return () => clearInterval(t);
   }, []);
 
-  // Group sessions by project — match session name prefix to project name
-  const groups: ProjectGroup[] = [];
+  // Group sessions by project
   const claimed = new Set<string>();
+  const groups: { project: ProjectRecord | null; sessions: SessionInfo[] }[] = [];
 
   for (const p of projects) {
-    const matching = sessions.filter(
-      (s) => s.name === p.name || s.name.startsWith(p.name + "-")
-    );
+    const matching = sessions.filter((s) => s.name === p.name || s.name.startsWith(p.name + "-"));
     matching.forEach((s) => claimed.add(s.name));
     groups.push({ project: p, sessions: matching });
   }
   const unclaimed = sessions.filter((s) => !claimed.has(s.name));
-  if (unclaimed.length > 0) {
+  if (unclaimed.length > 0 || projects.length === 0) {
     groups.push({ project: null, sessions: unclaimed });
   }
 
-  const spawn = async (project: ProjectRecord | null) => {
-    const name = spawnName.trim();
-    if (!name) return;
-    setSpawning(project?.name ?? "__global");
-    try {
-      await apiPost("/api/sessions", { name });
-      setSpawnName("");
-      await refresh();
-      openTab(name, project?.path);
-      if (project) {
-        try { await apiPost(`/api/pm/projects/${project.id}/sessions/${name}`); } catch {}
-      }
-    } catch {} finally { setSpawning(null); }
+  const createSession = async (name: string, project: ProjectRecord | null) => {
+    await apiPost("/api/sessions", { name });
+    await refresh();
+    openTab(name, project?.path);
+    if (project) {
+      try { await apiPost(`/api/pm/projects/${project.id}/sessions/${name}`); } catch {}
+    }
   };
 
   const kill = async (e: React.MouseEvent, name: string) => {
@@ -72,119 +57,104 @@ export function SessionsPanel() {
   return (
     <div className="sp">
       {groups.map((g) => (
-        <ProjectGroupView
+        <Group
           key={g.project?.name ?? "__other"}
-          group={g}
+          project={g.project}
+          sessions={g.sessions}
           openNames={openNames}
           openTab={openTab}
           kill={kill}
-          spawning={spawning}
-          spawnName={spawnName}
-          setSpawnName={setSpawnName}
-          spawn={spawn}
+          createSession={createSession}
         />
       ))}
-      {groups.length === 0 && <div className="empty">No projects or sessions</div>}
     </div>
   );
 }
 
-function ProjectGroupView({
-  group, openNames, openTab, kill, spawning, spawnName, setSpawnName, spawn,
-}: {
-  group: ProjectGroup;
+function Group({ project, sessions, openNames, openTab, kill, createSession }: {
+  project: ProjectRecord | null;
+  sessions: SessionInfo[];
   openNames: Set<string>;
   openTab: (name: string, path?: string) => Promise<void>;
   kill: (e: React.MouseEvent, name: string) => void;
-  spawning: string | null;
-  spawnName: string;
-  setSpawnName: (v: string) => void;
-  spawn: (p: ProjectRecord | null) => void;
+  createSession: (name: string, project: ProjectRecord | null) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(true);
-  const p = group.project;
-  const groupKey = p?.name ?? "__other";
-  const isSpawningHere = spawning === groupKey;
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleAdd = () => {
+    setAdding(true);
+    setNewName(project ? `${project.name}-` : "");
+  };
+
+  const handleCreate = async () => {
+    const name = newName.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    try {
+      await createSession(name, project);
+      setAdding(false);
+      setNewName("");
+    } catch {} finally { setBusy(false); }
+  };
 
   return (
     <div className="sp-group">
       <div className="sp-group-header" onClick={() => setExpanded(!expanded)}>
         <span className="sp-chevron">{expanded ? "▾" : "▸"}</span>
-        <span className="sp-group-name">{p ? p.name : "Other"}</span>
-        <span className="sp-group-count">{group.sessions.length}</span>
-        <button
-          className="sp-add"
-          onClick={(e) => {
-            e.stopPropagation();
-            setSpawnName(p ? `${p.name}-` : "");
-            setExpanded(true);
-          }}
-          title="New session"
-        >+</button>
+        <span className="sp-group-name">{project ? project.name : "Other"}</span>
+        <span className="sp-group-count">{sessions.length}</span>
+        <button className="sp-add" onClick={(e) => { e.stopPropagation(); handleAdd(); setExpanded(true); }} title="New session">+</button>
       </div>
 
       {expanded && (
         <div className="sp-group-body">
-          {/* Inline spawn row */}
-          {(isSpawningHere || spawnName.startsWith((p?.name ?? "") + "-") || (!p && spawnName && !spawnName.includes("-"))) && (
+          {adding && (
             <div className="sp-spawn-row">
               <input
                 className="sp-spawn-input"
-                value={spawnName}
-                onChange={(e) => setSpawnName(e.target.value)}
-                placeholder={p ? `${p.name}-task` : "session-name"}
-                onKeyDown={(e) => e.key === "Enter" && spawn(p)}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={project ? `${project.name}-task` : "session-name"}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreate();
+                  if (e.key === "Escape") setAdding(false);
+                }}
                 autoFocus
               />
-              <button
-                className="sp-spawn-go"
-                onClick={() => spawn(p)}
-                disabled={!spawnName.trim() || !!spawning}
-              >
-                {isSpawningHere ? "..." : "Go"}
+              <button className="sp-spawn-go" onClick={handleCreate} disabled={!newName.trim() || busy}>
+                {busy ? "..." : "Go"}
               </button>
+              <button className="sp-spawn-cancel" onClick={() => setAdding(false)}>×</button>
             </div>
           )}
 
-          {group.sessions.map((s) => {
+          {sessions.map((s) => {
             const isOpen = openNames.has(s.name);
-            const agents = s.agentCounts;
-            const hasAgents = agents.claude + agents.codex + agents.gemini > 0;
-            // Show short name (strip project prefix)
-            const shortName = p && s.name.startsWith(p.name + "-")
-              ? s.name.slice(p.name.length + 1)
-              : s.name;
+            const { claude, codex, gemini } = s.agentCounts;
+            const shortName = project && s.name.startsWith(project.name + "-")
+              ? s.name.slice(project.name.length + 1) : s.name;
 
             return (
-              <div
-                key={s.name}
-                className={`sp-session ${isOpen ? "open" : ""}`}
-                onClick={() => openTab(s.name, p?.path)}
-              >
+              <div key={s.name} className={`sp-session ${isOpen ? "open" : ""}`} onClick={() => openTab(s.name, project?.path)}>
                 {isOpen && <span className="sp-dot" />}
                 <span className="sp-sname">{shortName}</span>
                 <span className="sp-indicators">
                   <span className="sp-proc">{s.processLabel}</span>
                   {s.paneCount > 1 && <span className="sp-badge">{s.paneCount}p</span>}
-                  {hasAgents && (
-                    <>
-                      {agents.claude > 0 && <span style={{ color: AC.claude }} className="sp-agent">C{agents.claude > 1 ? agents.claude : ""}</span>}
-                      {agents.codex > 0 && <span style={{ color: AC.codex }} className="sp-agent">X{agents.codex > 1 ? agents.codex : ""}</span>}
-                      {agents.gemini > 0 && <span style={{ color: AC.gemini }} className="sp-agent">G{agents.gemini > 1 ? agents.gemini : ""}</span>}
-                    </>
-                  )}
+                  {claude > 0 && <span style={{ color: AC.claude }} className="sp-agent">C{claude > 1 ? claude : ""}</span>}
+                  {codex > 0 && <span style={{ color: AC.codex }} className="sp-agent">X{codex > 1 ? codex : ""}</span>}
+                  {gemini > 0 && <span style={{ color: AC.gemini }} className="sp-agent">G{gemini > 1 ? gemini : ""}</span>}
                   {s.isNtmSession && <span className="sp-badge sp-ntm">ntm</span>}
                 </span>
-                {!isOpen && (
-                  <button className="sp-kill" onClick={(e) => kill(e, s.name)}>×</button>
-                )}
+                {!isOpen && <button className="sp-kill" onClick={(e) => kill(e, s.name)}>×</button>}
               </div>
             );
           })}
 
-          {group.sessions.length === 0 && (
-            <div className="sp-empty">No sessions</div>
-          )}
+          {sessions.length === 0 && !adding && <div className="sp-empty">No sessions</div>}
         </div>
       )}
     </div>

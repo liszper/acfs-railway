@@ -124,6 +124,11 @@ const stmtInsertProject = db.prepare(
    VALUES (?, ?, ?, ?)`
 );
 
+const stmtInsertProjectFull = db.prepare(
+  `INSERT INTO projects (name, path, description, remote_url, default_branch)
+   VALUES (?, ?, ?, ?, ?)`
+);
+
 const stmtAllProjects = db.prepare("SELECT * FROM projects ORDER BY pinned DESC, name ASC");
 
 const stmtProjectsByStatus = db.prepare(
@@ -233,6 +238,29 @@ export function syncProjects(): void {
       stmtArchiveProject.run(proj.id);
     }
   }
+}
+
+export function createProject(
+  name: string,
+  path: string,
+  description?: string,
+): ProjectRecord | { error: string } {
+  if (!name || !/^[a-zA-Z0-9._-]+$/.test(name)) {
+    return { error: "Invalid project name" };
+  }
+  const existing = stmtProjectByName.get(name) as RawProjectRow | null;
+  if (existing) return { error: "Project already exists" };
+
+  const remote = existsSync(path) ? gitRemoteUrl(path) : null;
+  const branch = existsSync(path) ? gitDefaultBranch(path) : null;
+
+  try {
+    stmtInsertProjectFull.run(name, path, description || "", remote, branch);
+    logActivity(null, null, "clone", `Project added: ${name}`);
+  } catch (e: unknown) {
+    return { error: (e as Error).message || "Failed to create project" };
+  }
+  return getProjectByName(name) || { error: "Failed to retrieve created project" };
 }
 
 export function getAllProjects(opts?: {

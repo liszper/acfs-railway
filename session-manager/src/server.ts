@@ -11,6 +11,7 @@ import { isNtmAvailable } from "./services/ntm.js";
 import type { WsData } from "./types.js";
 import {
   handlePmListProjects,
+  handlePmCreateProject,
   handlePmGetProject,
   handlePmUpdateProject,
   handlePmDeleteProject,
@@ -230,6 +231,10 @@ function routeRequest(
   // --- PM (project management) routes ---
   if (url.pathname === "/api/pm/projects" && req.method === "GET") {
     handlePmListProjects(req, res);
+    return;
+  }
+  if (url.pathname === "/api/pm/projects" && req.method === "POST") {
+    handlePmCreateProject(req, res);
     return;
   }
 

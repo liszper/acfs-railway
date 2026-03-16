@@ -148,7 +148,29 @@ export function ProjectsPanel() {
 
   const openProjectTerminal = (e: React.MouseEvent, project: ProjectRecord) => {
     e.stopPropagation();
-    openTab(project.name);
+    openTab(project.name, project.path);
+  };
+
+  const deleteProjectRecord = async (e: React.MouseEvent, project: ProjectRecord) => {
+    e.stopPropagation();
+    try {
+      await apiDelete(`/api/pm/projects/${project.id}`);
+      if (expandedId === project.id) setExpandedId(null);
+      refresh();
+    } catch {}
+  };
+
+  const [adding, setAdding] = useState(false);
+  const [newProject, setNewProject] = useState({ name: "", path: "/data/projects/", description: "" });
+
+  const addProject = async () => {
+    if (!newProject.name.trim() || !newProject.path.trim()) return;
+    try {
+      await apiPost("/api/pm/projects", newProject);
+      setNewProject({ name: "", path: "/data/projects/", description: "" });
+      setAdding(false);
+      refresh();
+    } catch {}
   };
 
   if (!available) {
@@ -177,6 +199,11 @@ export function ProjectsPanel() {
           />
           <button
             className="projects-sync-btn"
+            onClick={() => setAdding(!adding)}
+            title="Add project"
+          >+</button>
+          <button
+            className="projects-sync-btn"
             onClick={syncProjects}
             disabled={syncing}
             title="Sync from filesystem"
@@ -196,6 +223,35 @@ export function ProjectsPanel() {
           ))}
         </div>
       </div>
+
+      {adding && (
+        <div className="project-add-form">
+          <input
+            className="project-add-input"
+            value={newProject.name}
+            onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+            placeholder="Project name"
+            autoFocus
+          />
+          <input
+            className="project-add-input"
+            value={newProject.path}
+            onChange={(e) => setNewProject({ ...newProject, path: e.target.value })}
+            placeholder="/data/projects/my-app"
+          />
+          <input
+            className="project-add-input"
+            value={newProject.description}
+            onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
+            placeholder="Description (optional)"
+            onKeyDown={(e) => e.key === "Enter" && addProject()}
+          />
+          <div className="project-add-actions">
+            <button className="project-add-btn" onClick={addProject} disabled={!newProject.name.trim() || !newProject.path.trim()}>Add</button>
+            <button className="project-add-cancel" onClick={() => setAdding(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       <div className="project-list">
         {sorted.map((p) => {
@@ -269,6 +325,13 @@ export function ProjectsPanel() {
                   title={p.status === "archived" ? "Unarchive" : "Archive"}
                 >
                   {p.status === "archived" ? "\u21A9" : "\u2193"}
+                </button>
+                <button
+                  className="project-action-btn project-action-delete"
+                  onClick={(e) => deleteProjectRecord(e, p)}
+                  title="Remove from database (doesn't delete files)"
+                >
+                  &times;
                 </button>
               </div>
 
