@@ -277,7 +277,6 @@ export function startServer(): void {
             body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
           });
           const body = await nodeResp.blob();
-          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.size} bytes`);
           return new Response(body, {
             status: nodeResp.status,
             headers: {
