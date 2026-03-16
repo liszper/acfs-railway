@@ -280,7 +280,7 @@ export function startServer(): void {
           const headers = new Headers(nodeResp.headers);
           headers.delete("transfer-encoding");
           headers.set("content-length", String(Buffer.byteLength(body)));
-          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.length} chars`);
+          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.length} chars, cl=${headers.get("content-length")}, te=${headers.get("transfer-encoding")}, ct=${headers.get("content-type")}`);
           return new Response(body, {
             status: nodeResp.status,
             headers,
