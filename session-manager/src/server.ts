@@ -276,12 +276,11 @@ export function startServer(): void {
             headers: req.headers,
             body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
           });
-          // Re-wrap the response — Bun.serve can lose the body for proxied
-          // responses. Read fully and construct new Response with explicit length.
           const body = new Uint8Array(await nodeResp.arrayBuffer());
           const headers = new Headers(nodeResp.headers);
           headers.delete("transfer-encoding");
           headers.set("content-length", String(body.byteLength));
+          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.byteLength} bytes`);
           return new Response(body, {
             status: nodeResp.status,
             headers,
