@@ -5,15 +5,23 @@ import type { SessionInfo, ProjectRecord } from "../api/types";
 
 const AC: Record<string, string> = { claude: "#bc8cff", codex: "#3fb950", gemini: "#58a6ff" };
 
-function ConfirmDialog({ message, actionLabel, onConfirm, onCancel }: {
-  message: string; actionLabel: string; onConfirm: () => void; onCancel: () => void;
+function timeAgo(ts: number): string {
+  const s = (Date.now() / 1000) - ts;
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+
+function Confirm({ message, action, onConfirm, onCancel }: {
+  message: string; action: string; onConfirm: () => void; onCancel: () => void;
 }) {
   return (
     <div className="confirm-overlay" onClick={onCancel}>
       <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
         <p className="confirm-message">{message}</p>
         <div className="confirm-actions">
-          <button className="confirm-btn confirm-btn-danger" onClick={onConfirm}>{actionLabel}</button>
+          <button className="confirm-btn confirm-btn-danger" onClick={onConfirm}>{action}</button>
           <button className="confirm-btn confirm-btn-cancel" onClick={onCancel}>Cancel</button>
         </div>
       </div>
@@ -21,89 +29,44 @@ function ConfirmDialog({ message, actionLabel, onConfirm, onCancel }: {
   );
 }
 
-function SessionDetail({ session, project, onClose }: {
-  session: SessionInfo; project: ProjectRecord | null; onClose: () => void;
-}) {
-  const { openTab, tabs, closeTab } = useTerminalStore();
-  const isOpen = tabs.some((t) => t.sessionName === session.name);
-  const tab = tabs.find((t) => t.sessionName === session.name);
-  const [confirmKill, setConfirmKill] = useState(false);
-  const { claude, codex, gemini } = session.agentCounts;
-  const totalAgents = claude + codex + gemini;
+function AgentBadges({ counts }: { counts: SessionInfo["agentCounts"] }) {
+  const { claude, codex, gemini } = counts;
+  if (claude + codex + gemini === 0) return null;
+  return (
+    <span className="s-agents">
+      {claude > 0 && <span style={{ background: AC.claude }}>C{claude > 1 ? claude : ""}</span>}
+      {codex > 0 && <span style={{ background: AC.codex }}>X{codex > 1 ? codex : ""}</span>}
+      {gemini > 0 && <span style={{ background: AC.gemini }}>G{gemini > 1 ? gemini : ""}</span>}
+    </span>
+  );
+}
 
-  const handleKill = async () => {
-    if (tab) closeTab(tab.id);
-    await apiDelete(`/api/sessions/${session.name}`);
-    onClose();
-  };
+function SessionRow({ s, project, isOpen, onOpen, onSelect, onKill }: {
+  s: SessionInfo;
+  project: ProjectRecord | null;
+  isOpen: boolean;
+  onOpen: () => void;
+  onSelect: () => void;
+  onKill: () => void;
+}) {
+  const short = project && s.name.toLowerCase().startsWith(project.name.toLowerCase() + "-")
+    ? s.name.slice(project.name.length + 1) : s.name;
 
   return (
-    <div className="sp-detail">
-      {confirmKill && (
-        <ConfirmDialog
-          message={`Terminate session "${session.name}"? This will kill the tmux session and all processes running in it.`}
-          actionLabel="Terminate"
-          onConfirm={handleKill}
-          onCancel={() => setConfirmKill(false)}
-        />
-      )}
-      <div className="sp-detail-header">
-        <span className="sp-detail-name">{session.name}</span>
-        <button className="sp-detail-close" onClick={onClose}>×</button>
+    <div className={`s-row ${isOpen ? "s-open" : ""}`}>
+      <div className="s-row-main" onClick={onOpen}>
+        <span className={`s-status-dot ${isOpen ? "s-dot-open" : s.attached > 0 ? "s-dot-attached" : ""}`} />
+        <span className="s-name">{short}</span>
+        <AgentBadges counts={s.agentCounts} />
+        {s.isNtmSession && <span className="s-tag s-tag-ntm">NTM</span>}
+        {s.paneCount > 1 && <span className="s-tag">{s.paneCount}P</span>}
+        {s.windows > 1 && <span className="s-tag">{s.windows}W</span>}
+        <span className="s-meta">{s.processLabel}</span>
+        <span className="s-time">{timeAgo(s.created)}</span>
       </div>
-      <div className="sp-detail-grid">
-        <div className="sp-detail-row">
-          <span className="sp-detail-label">Process</span>
-          <span className="sp-detail-value">{session.processLabel}</span>
-        </div>
-        <div className="sp-detail-row">
-          <span className="sp-detail-label">Panes</span>
-          <span className="sp-detail-value">{session.paneCount}</span>
-        </div>
-        <div className="sp-detail-row">
-          <span className="sp-detail-label">Windows</span>
-          <span className="sp-detail-value">{session.windows}</span>
-        </div>
-        <div className="sp-detail-row">
-          <span className="sp-detail-label">Attached</span>
-          <span className="sp-detail-value">{session.attached > 0 ? "Yes" : "No"}</span>
-        </div>
-        {totalAgents > 0 && (
-          <div className="sp-detail-row">
-            <span className="sp-detail-label">Agents</span>
-            <span className="sp-detail-value sp-detail-agents">
-              {claude > 0 && <span style={{ color: AC.claude }}>Claude ×{claude}</span>}
-              {codex > 0 && <span style={{ color: AC.codex }}>Codex ×{codex}</span>}
-              {gemini > 0 && <span style={{ color: AC.gemini }}>Gemini ×{gemini}</span>}
-            </span>
-          </div>
-        )}
-        {session.isNtmSession && (
-          <div className="sp-detail-row">
-            <span className="sp-detail-label">NTM</span>
-            <span className="sp-detail-value" style={{ color: "#bc8cff" }}>Managed</span>
-          </div>
-        )}
-        <div className="sp-detail-row">
-          <span className="sp-detail-label">Created</span>
-          <span className="sp-detail-value">{new Date(session.created * 1000).toLocaleString()}</span>
-        </div>
-      </div>
-      <div className="sp-detail-actions">
-        {!isOpen ? (
-          <button className="sp-detail-btn sp-detail-btn-open" onClick={() => openTab(session.name, project?.path)}>
-            Open Terminal
-          </button>
-        ) : (
-          <button className="sp-detail-btn sp-detail-btn-focus" onClick={() => {
-            if (tab) useTerminalStore.getState().setActive(tab.id);
-          }}>
-            Focus Tab
-          </button>
-        )}
-        <button className="sp-detail-btn sp-detail-btn-kill" onClick={() => setConfirmKill(true)}>
-          Terminate Session
-        </button>
+      <div className="s-row-actions">
+        <button className="s-btn s-btn-info" onClick={onSelect} title="Details">...</button>
+        <button className="s-btn s-btn-kill" onClick={onKill} title="Terminate">×</button>
       </div>
     </div>
   );
@@ -112,16 +75,13 @@ function SessionDetail({ session, project, onClose }: {
 export function SessionsPanel() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
-  const { openTab, tabs } = useTerminalStore();
+  const [confirmKill, setConfirmKill] = useState<SessionInfo | null>(null);
+  const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
+  const { openTab, tabs, closeTab } = useTerminalStore();
   const openNames = new Set(tabs.map((t) => t.sessionName));
 
-  const refresh = async () => {
-    try { setSessions(await apiGet<SessionInfo[]>("/api/sessions")); } catch {}
-  };
-  const refreshProjects = async () => {
-    try { setProjects(await apiGet<ProjectRecord[]>("/api/pm/projects?status=active")); } catch {}
-  };
+  const refresh = async () => { try { setSessions(await apiGet<SessionInfo[]>("/api/sessions")); } catch {} };
+  const refreshProjects = async () => { try { setProjects(await apiGet<ProjectRecord[]>("/api/pm/projects?status=active")); } catch {} };
 
   useEffect(() => {
     refresh(); refreshProjects();
@@ -129,149 +89,161 @@ export function SessionsPanel() {
     return () => clearInterval(t);
   }, []);
 
-  // Group sessions by project
+  // Group
   const claimed = new Set<string>();
   const groups: { project: ProjectRecord | null; sessions: SessionInfo[] }[] = [];
   for (const p of projects) {
-    const pLower = p.name.toLowerCase();
-    const matching = sessions.filter((s) => {
-      const sLower = s.name.toLowerCase();
-      return sLower === pLower || sLower.startsWith(pLower + "-");
-    });
-    matching.forEach((s) => claimed.add(s.name));
-    groups.push({ project: p, sessions: matching });
+    const pl = p.name.toLowerCase();
+    const m = sessions.filter((s) => { const sl = s.name.toLowerCase(); return sl === pl || sl.startsWith(pl + "-"); });
+    m.forEach((s) => claimed.add(s.name));
+    groups.push({ project: p, sessions: m });
   }
   const unclaimed = sessions.filter((s) => !claimed.has(s.name));
-  if (unclaimed.length > 0 || projects.length === 0) {
-    groups.push({ project: null, sessions: unclaimed });
-  }
+  if (unclaimed.length > 0 || projects.length === 0) groups.push({ project: null, sessions: unclaimed });
 
-  const createSession = async (name: string, project: ProjectRecord | null) => {
+  const doCreateSession = async (name: string, project: ProjectRecord | null) => {
     await apiPost("/api/sessions", { name, cwd: project?.path });
     openTab(name, project?.path);
-    if (project) {
-      try { await apiPost(`/api/pm/projects/${project.id}/sessions/${name}`); } catch {}
-    }
-    // Refresh immediately, then again after a short delay to catch the new session
+    if (project) try { await apiPost(`/api/pm/projects/${project.id}/sessions/${name}`); } catch {}
     await refresh();
     setTimeout(refresh, 1000);
   };
 
-  // If a session is selected, show its detail view
-  const selectedInfo = selectedSession ? sessions.find((s) => s.name === selectedSession) : null;
-  const selectedProject = selectedSession
-    ? projects.find((p) => selectedSession === p.name || selectedSession.startsWith(p.name + "-")) ?? null
+  const doKill = async () => {
+    if (!confirmKill) return;
+    const tab = tabs.find((t) => t.sessionName === confirmKill.name);
+    if (tab) closeTab(tab.id);
+    await apiDelete(`/api/sessions/${confirmKill.name}`);
+    setConfirmKill(null);
+    if (expandedDetail === confirmKill.name) setExpandedDetail(null);
+    refresh();
+  };
+
+  // Detail inline
+  const detailSession = expandedDetail ? sessions.find((s) => s.name === expandedDetail) : null;
+  const detailProject = expandedDetail
+    ? projects.find((p) => expandedDetail.toLowerCase() === p.name.toLowerCase() || expandedDetail.toLowerCase().startsWith(p.name.toLowerCase() + "-")) ?? null
     : null;
 
-  if (selectedInfo) {
-    return (
-      <div className="sp">
-        <SessionDetail
-          session={selectedInfo}
-          project={selectedProject}
-          onClose={() => { setSelectedSession(null); refresh(); }}
-        />
-      </div>
-    );
-  }
-
   return (
-    <div className="sp">
+    <div className="s-panel">
+      {confirmKill && (
+        <Confirm
+          message={`Terminate "${confirmKill.name}"? All processes in this session will be killed.`}
+          action="Terminate"
+          onConfirm={doKill}
+          onCancel={() => setConfirmKill(null)}
+        />
+      )}
+
+      {/* Summary bar */}
+      <div className="s-summary">
+        <span className="s-summary-count">{sessions.length}</span>
+        <span className="s-summary-label">sessions</span>
+        <span className="s-summary-sep" />
+        <span className="s-summary-count">{sessions.reduce((a, s) => a + s.agentCounts.claude + s.agentCounts.codex + s.agentCounts.gemini, 0)}</span>
+        <span className="s-summary-label">agents</span>
+      </div>
+
+      {/* Inline detail */}
+      {detailSession && (
+        <div className="s-detail-card">
+          <div className="s-detail-top">
+            <span className="s-detail-title">{detailSession.name}</span>
+            <button className="s-detail-x" onClick={() => setExpandedDetail(null)}>×</button>
+          </div>
+          <div className="s-detail-info">
+            <div><span className="s-dl">Process</span><span>{detailSession.processLabel}</span></div>
+            <div><span className="s-dl">Panes</span><span>{detailSession.paneCount}</span></div>
+            <div><span className="s-dl">Windows</span><span>{detailSession.windows}</span></div>
+            <div><span className="s-dl">Attached</span><span>{detailSession.attached > 0 ? "Yes" : "No"}</span></div>
+            <div><span className="s-dl">Created</span><span>{new Date(detailSession.created * 1000).toLocaleString()}</span></div>
+            {(detailSession.agentCounts.claude + detailSession.agentCounts.codex + detailSession.agentCounts.gemini > 0) && (
+              <div><span className="s-dl">Agents</span><span><AgentBadges counts={detailSession.agentCounts} /></span></div>
+            )}
+          </div>
+          <div className="s-detail-btns">
+            {!openNames.has(detailSession.name) ? (
+              <button className="s-dbtn s-dbtn-open" onClick={() => { openTab(detailSession.name, detailProject?.path); setExpandedDetail(null); }}>Open</button>
+            ) : (
+              <button className="s-dbtn s-dbtn-focus" onClick={() => { const t = tabs.find((t) => t.sessionName === detailSession.name); if (t) useTerminalStore.getState().setActive(t.id); setExpandedDetail(null); }}>Focus</button>
+            )}
+            <button className="s-dbtn s-dbtn-kill" onClick={() => setConfirmKill(detailSession)}>Terminate</button>
+          </div>
+        </div>
+      )}
+
+      {/* Groups */}
       {groups.map((g) => (
-        <Group
+        <ProjectGroup
           key={g.project?.name ?? "__other"}
           project={g.project}
           sessions={g.sessions}
           openNames={openNames}
-          openTab={openTab}
-          createSession={createSession}
-          onSelect={setSelectedSession}
+          onOpen={(name) => openTab(name, g.project?.path)}
+          onCreate={(name) => doCreateSession(name, g.project)}
+          onSelect={setExpandedDetail}
+          onKill={setConfirmKill}
         />
       ))}
     </div>
   );
 }
 
-function Group({ project, sessions, openNames, openTab, createSession, onSelect }: {
+function ProjectGroup({ project, sessions, openNames, onOpen, onCreate, onSelect, onKill }: {
   project: ProjectRecord | null;
   sessions: SessionInfo[];
   openNames: Set<string>;
-  openTab: (name: string, path?: string) => Promise<void>;
-  createSession: (name: string, project: ProjectRecord | null) => Promise<void>;
+  onOpen: (name: string) => void;
+  onCreate: (name: string) => void;
   onSelect: (name: string) => void;
+  onKill: (s: SessionInfo) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const handleCreate = async () => {
-    const name = newName.trim();
-    if (!name || busy) return;
+  const doCreate = async () => {
+    const n = name.trim();
+    if (!n || busy) return;
     setBusy(true);
-    try { await createSession(name, project); setAdding(false); setNewName(""); }
-    catch {} finally { setBusy(false); }
+    try { await onCreate(n); setAdding(false); setName(""); } catch {} finally { setBusy(false); }
   };
 
   return (
-    <div className="sp-group">
-      <div className="sp-group-header" onClick={() => setExpanded(!expanded)}>
-        <span className="sp-chevron">{expanded ? "▾" : "▸"}</span>
-        <span className="sp-group-name">{project ? project.name : "Other"}</span>
-        <span className="sp-group-count">{sessions.length}</span>
-        <button className="sp-add" onClick={(e) => {
-          e.stopPropagation();
-          setAdding(true);
-          setNewName(project ? `${project.name}-` : "");
-          setExpanded(true);
-        }} title="New session">+</button>
+    <div className="s-grp">
+      <div className="s-grp-hdr" onClick={() => setOpen(!open)}>
+        <span className="s-chev">{open ? "▾" : "▸"}</span>
+        <span className="s-grp-icon">{project ? "◆" : "○"}</span>
+        <span className="s-grp-name">{project?.name ?? "Ungrouped"}</span>
+        {sessions.length > 0 && <span className="s-grp-cnt">{sessions.length}</span>}
+        <button className="s-grp-add" onClick={(e) => { e.stopPropagation(); setAdding(true); setName(project ? `${project.name}-` : ""); setOpen(true); }}>+</button>
       </div>
-
-      {expanded && (
-        <div className="sp-group-body">
+      {open && (
+        <div className="s-grp-body">
           {adding && (
-            <div className="sp-spawn-row">
+            <div className="s-new">
               <input
-                className="sp-spawn-input"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
+                value={name} onChange={(e) => setName(e.target.value)}
                 placeholder={project ? `${project.name}-task` : "session-name"}
-                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setAdding(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") doCreate(); if (e.key === "Escape") setAdding(false); }}
                 autoFocus
               />
-              <button className="sp-spawn-go" onClick={handleCreate} disabled={!newName.trim() || busy}>
-                {busy ? "..." : "Go"}
-              </button>
-              <button className="sp-spawn-cancel" onClick={() => setAdding(false)}>×</button>
+              <button onClick={doCreate} disabled={!name.trim() || busy}>{busy ? "..." : "Go"}</button>
+              <button className="s-new-x" onClick={() => setAdding(false)}>×</button>
             </div>
           )}
-
-          {sessions.map((s) => {
-            const isOpen = openNames.has(s.name);
-            const { claude, codex, gemini } = s.agentCounts;
-            const shortName = project && s.name.toLowerCase().startsWith(project.name.toLowerCase() + "-")
-              ? s.name.slice(project.name.length + 1) : s.name;
-
-            return (
-              <div key={s.name} className={`sp-session ${isOpen ? "open" : ""}`}>
-                <div className="sp-session-main" onClick={() => openTab(s.name, project?.path)}>
-                  {isOpen && <span className="sp-dot" />}
-                  <span className="sp-sname">{shortName}</span>
-                  <span className="sp-indicators">
-                    <span className="sp-proc">{s.processLabel}</span>
-                    {s.paneCount > 1 && <span className="sp-badge">{s.paneCount}p</span>}
-                    {claude > 0 && <span style={{ color: AC.claude }} className="sp-agent">C{claude > 1 ? claude : ""}</span>}
-                    {codex > 0 && <span style={{ color: AC.codex }} className="sp-agent">X{codex > 1 ? codex : ""}</span>}
-                    {gemini > 0 && <span style={{ color: AC.gemini }} className="sp-agent">G{gemini > 1 ? gemini : ""}</span>}
-                    {s.isNtmSession && <span className="sp-badge sp-ntm">ntm</span>}
-                  </span>
-                </div>
-                <button className="sp-info" onClick={(e) => { e.stopPropagation(); onSelect(s.name); }} title="Session details">i</button>
-              </div>
-            );
-          })}
-
-          {sessions.length === 0 && !adding && <div className="sp-empty">No sessions</div>}
+          {sessions.map((s) => (
+            <SessionRow
+              key={s.name} s={s} project={project}
+              isOpen={openNames.has(s.name)}
+              onOpen={() => onOpen(s.name)}
+              onSelect={() => onSelect(s.name)}
+              onKill={() => onKill(s)}
+            />
+          ))}
+          {sessions.length === 0 && !adding && <div className="s-empty">No sessions</div>}
         </div>
       )}
     </div>
