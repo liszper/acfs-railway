@@ -6,6 +6,13 @@ import { useConnectionStore } from "../store/connection";
 
 type SidePanel = "sessions" | "tools" | "secrets" | "projects" | null;
 
+const PANEL_ICONS: Record<string, string> = {
+  sessions: "⊞",
+  tools: "⚙",
+  secrets: "⚷",
+  projects: "◇",
+};
+
 function StatusBar() {
   const { status, error, reconnectAttempt, reconnect, disconnect } = useConnectionStore();
 
@@ -13,17 +20,14 @@ function StatusBar() {
 
   return (
     <div className={`status-bar status-${status}`}>
-      <span className="status-icon">
-        {status === "reconnecting" && "⟳"}
-        {status === "offline" && "⊘"}
-      </span>
+      <span className="status-dot" />
       <span className="status-text">
         {status === "reconnecting" && (error || `Reconnecting (attempt ${reconnectAttempt})...`)}
-        {status === "offline" && "Network offline — waiting for connection..."}
+        {status === "offline" && "Offline — waiting for connection"}
       </span>
       <div className="status-actions">
         {status === "reconnecting" && (
-          <button onClick={() => reconnect()} className="status-btn">Retry now</button>
+          <button onClick={() => reconnect()} className="status-btn">Retry</button>
         )}
         <button onClick={() => disconnect()} className="status-btn status-btn-disconnect">Disconnect</button>
       </div>
@@ -45,14 +49,15 @@ export function MainLayout() {
               key={p}
               className={`sidebar-btn ${sidePanel === p ? "active" : ""}`}
               onClick={() => setSidePanel(sidePanel === p ? null : p)}
+              title={p[0].toUpperCase() + p.slice(1)}
             >
-              {p[0].toUpperCase() + p.slice(1)}
+              {PANEL_ICONS[p]}
             </button>
           ))}
         </div>
         <div className={`sidebar-status sidebar-status-${status}`} title={status} />
-        <button className="sidebar-btn disconnect" onClick={disconnect}>
-          Disconnect
+        <button className="sidebar-btn disconnect" onClick={disconnect} title="Disconnect">
+          ⏻
         </button>
       </div>
       <div className="content-wrapper">

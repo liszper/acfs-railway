@@ -1,12 +1,6 @@
 import { useTerminalStore } from "../store/terminals";
 import { Terminal } from "./Terminal";
 
-const STATUS_ICONS: Record<string, string> = {
-  connecting: "◌",
-  connected: "",
-  disconnected: "⊘",
-};
-
 export function TerminalTabs() {
   const { tabs, activeTabId, setActive, closeTab, reopenTab } = useTerminalStore();
 
@@ -14,7 +8,7 @@ export function TerminalTabs() {
     return (
       <div className="terminal-empty">
         <p>No terminals open</p>
-        <p className="hint">Click a session in the sidebar to open a terminal</p>
+        <p className="hint">Click a session to open a terminal</p>
       </div>
     );
   }
@@ -29,9 +23,7 @@ export function TerminalTabs() {
             onClick={() => setActive(tab.id)}
           >
             {tab.status !== "connected" && (
-              <span className={`tab-status tab-status-${tab.status}`}>
-                {STATUS_ICONS[tab.status]}
-              </span>
+              <span className={`tab-status-dot tab-status-dot-${tab.status}`} />
             )}
             <span className="tab-name">{tab.sessionName}</span>
             <button

@@ -130,7 +130,7 @@ export function ConnectionDialog() {
           <>
             {saved.length > 0 && (
               <button className="btn-back" onClick={() => setShowForm(false)}>
-                ← Saved connections
+                ← Back to saved
               </button>
             )}
             <div className="field">
@@ -138,7 +138,7 @@ export function ConnectionDialog() {
               <input
                 value={config.label}
                 onChange={(e) => setConfig({ ...config, label: e.target.value })}
-                placeholder="My ACFS Server"
+                placeholder="Connection label"
               />
             </div>
             <div className="field">
@@ -146,7 +146,7 @@ export function ConnectionDialog() {
               <input
                 value={config.sshHost}
                 onChange={(e) => setConfig({ ...config, sshHost: e.target.value })}
-                placeholder="crossover.proxy.rlwy.net"
+                placeholder="SSH host"
               />
             </div>
             <div className="field-row">
@@ -156,6 +156,7 @@ export function ConnectionDialog() {
                   type="number"
                   value={config.sshPort}
                   onChange={(e) => setConfig({ ...config, sshPort: parseInt(e.target.value) || 2222 })}
+                  placeholder="Port"
                 />
               </div>
               <div className="field">
@@ -163,6 +164,7 @@ export function ConnectionDialog() {
                 <input
                   value={config.user}
                   onChange={(e) => setConfig({ ...config, user: e.target.value })}
+                  placeholder="Username"
                 />
               </div>
             </div>
@@ -173,14 +175,15 @@ export function ConnectionDialog() {
                 value={config.password}
                 onChange={(e) => setConfig({ ...config, password: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+                placeholder="Password"
               />
             </div>
             <div className="field">
-              <label>API URL (auto-derived if empty)</label>
+              <label>API URL</label>
               <input
                 value={config.apiUrl}
                 onChange={(e) => setConfig({ ...config, apiUrl: e.target.value })}
-                placeholder="https://acfs-production.up.railway.app"
+                placeholder="API URL (auto-derived if empty)"
               />
             </div>
             <label className="checkbox-field">
