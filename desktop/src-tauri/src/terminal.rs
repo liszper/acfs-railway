@@ -22,30 +22,53 @@ impl TerminalSession {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let mut channel = ssh.open_channel().await?;
 
+        eprintln!("[terminal] requesting PTY for tab {}", tab_id);
+
         // Request PTY
         channel
             .request_pty(false, &"xterm-256color", 80, 24, 0, 0, &[])
             .await?;
 
-        // Execute command
-        channel.exec(true, command.as_bytes()).await?;
+        eprintln!("[terminal] PTY granted, requesting shell");
+
+        // Request interactive shell (not exec — we need persistent session)
+        channel.request_shell(false).await?;
+
+        eprintln!("[terminal] shell started, sending command: {}", command);
+
+        // Send the tmux attach/new command through the shell
+        let cmd_with_newline = format!("{}\n", command);
+        channel.data(cmd_with_newline.as_bytes()).await?;
 
         let (tx, mut rx) = mpsc::channel::<TerminalCommand>(256);
         let event_name = format!("terminal-data-{}", tab_id);
+        let tab_id_owned = tab_id.to_string();
 
         // Spawn task that reads from channel and forwards to frontend,
         // and also handles write/resize commands from frontend
         let reader_task = tokio::spawn(async move {
+            eprintln!("[terminal] reader loop started for tab {}", tab_id_owned);
             loop {
                 tokio::select! {
                     // Read from SSH channel -> emit to frontend
                     msg = channel.wait() => {
                         match msg {
                             Some(ChannelMsg::Data { data }) => {
-                                let _ = app.emit(&event_name, data.to_vec());
+                                let bytes = data.to_vec();
+                                eprintln!("[terminal] {} received {} bytes", tab_id_owned, bytes.len());
+                                let _ = app.emit(&event_name, &bytes);
                             }
-                            Some(ChannelMsg::Eof) | None => break,
-                            _ => {}
+                            Some(ChannelMsg::Eof) => {
+                                eprintln!("[terminal] {} EOF", tab_id_owned);
+                                break;
+                            }
+                            None => {
+                                eprintln!("[terminal] {} channel closed", tab_id_owned);
+                                break;
+                            }
+                            other => {
+                                eprintln!("[terminal] {} other msg: {:?}", tab_id_owned, other);
+                            }
                         }
                     }
                     // Handle commands from frontend
@@ -53,18 +76,24 @@ impl TerminalSession {
                         match cmd {
                             Some(TerminalCommand::Write(data)) => {
                                 if channel.data(&data[..]).await.is_err() {
+                                    eprintln!("[terminal] {} write failed", tab_id_owned);
                                     break;
                                 }
                             }
                             Some(TerminalCommand::Resize(cols, rows)) => {
+                                eprintln!("[terminal] {} resize {}x{}", tab_id_owned, cols, rows);
                                 let _ = channel.window_change(cols, rows, 0, 0).await;
                             }
-                            Some(TerminalCommand::Close) | None => break,
+                            Some(TerminalCommand::Close) | None => {
+                                eprintln!("[terminal] {} close requested", tab_id_owned);
+                                break;
+                            }
                         }
                     }
                 }
             }
             let _ = channel.close().await;
+            eprintln!("[terminal] {} reader loop ended", tab_id_owned);
         });
 
         Ok(Self {

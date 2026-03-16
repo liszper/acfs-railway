@@ -18,11 +18,11 @@ interface ConnectionStore extends ConnectionConfig {
 }
 
 export const useConnectionStore = create<ConnectionStore>((set) => ({
-  sshHost: "",
-  sshPort: 2222,
+  sshHost: "crossover.proxy.rlwy.net",
+  sshPort: 52992,
   user: "dev",
   password: "",
-  apiUrl: "",
+  apiUrl: "https://acfs-production.up.railway.app",
   connected: false,
   connecting: false,
   error: null,

@@ -63,7 +63,14 @@ export function Terminal({ tabId }: Props) {
 
     // Backend -> terminal
     const unlistenPromise = listen<number[]>(`terminal-data-${tabId}`, (event) => {
-      term.write(new Uint8Array(event.payload));
+      const payload = event.payload;
+      if (payload instanceof ArrayBuffer) {
+        term.write(new Uint8Array(payload));
+      } else if (Array.isArray(payload)) {
+        term.write(new Uint8Array(payload));
+      } else if (typeof payload === "string") {
+        term.write(payload);
+      }
     });
 
     // Resize

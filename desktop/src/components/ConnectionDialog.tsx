@@ -4,11 +4,11 @@ import { useConnectionStore } from "../store/connection";
 export function ConnectionDialog() {
   const { connect, connecting, error } = useConnectionStore();
   const [config, setConfig] = useState({
-    sshHost: "",
-    sshPort: 2222,
+    sshHost: "crossover.proxy.rlwy.net",
+    sshPort: 52992,
     user: "dev",
     password: "",
-    apiUrl: "",
+    apiUrl: "https://acfs-production.up.railway.app",
   });
 
   const handleConnect = () => {

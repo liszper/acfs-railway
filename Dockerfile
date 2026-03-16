@@ -601,14 +601,14 @@ fi
 # Flags are configurable via OMO_* env vars (see README)
 if [ ! -f "$TARGET_HOME/.config/opencode/opencode.json" ] || ! grep -q "oh-my-opencode" "$TARGET_HOME/.config/opencode/opencode.json" 2>/dev/null; then
     echo "Configuring OpenCode with oh-my-opencode plugin..."
-    su - "$TARGET_USER" -c "bunx oh-my-opencode install --no-tui \
+    su - "$TARGET_USER" -c "PATH=/opt/bun/bin:\$PATH bunx oh-my-opencode install --no-tui \
         --claude=${OMO_CLAUDE:-yes} \
         --openai=${OMO_OPENAI:-no} \
         --gemini=${OMO_GEMINI:-no} \
         --copilot=${OMO_COPILOT:-no} \
         --opencode-zen=${OMO_OPENCODE_ZEN:-no} \
         --zai-coding-plan=${OMO_ZAI_CODING_PLAN:-no} \
-        --opencode-go=${OMO_OPENCODE_GO:-no}" 2>/dev/null || echo "oh-my-opencode: install skipped"
+        --opencode-go=${OMO_OPENCODE_GO:-no}" 2>&1 || echo "oh-my-opencode: install skipped"
 fi
 
 # Create persistent directories for MCP Agent Mail and RANO

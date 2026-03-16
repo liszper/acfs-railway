@@ -30,7 +30,8 @@ impl AppState {
         let ssh = SshConnection::connect(&host, port, &user, &password).await?;
         *self.ssh.write().await = Some(ssh);
 
-        let api = ApiClient::new(api_url, &user, &password);
+        // API uses TTYD_USER (admin) with same password, not the SSH user (dev)
+        let api = ApiClient::new(api_url, "admin", &password);
         *self.api.write().await = Some(api);
 
         Ok(())
