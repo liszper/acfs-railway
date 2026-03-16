@@ -276,11 +276,11 @@ export function startServer(): void {
             headers: req.headers,
             body: req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined,
           });
-          const body = new Uint8Array(await nodeResp.arrayBuffer());
+          const body = await nodeResp.text();
           const headers = new Headers(nodeResp.headers);
           headers.delete("transfer-encoding");
-          headers.set("content-length", String(body.byteLength));
-          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.byteLength} bytes`);
+          headers.set("content-length", String(Buffer.byteLength(body)));
+          console.log(`[proxy] ${url.pathname} → ${nodeResp.status} ${body.length} chars`);
           return new Response(body, {
             status: nodeResp.status,
             headers,
