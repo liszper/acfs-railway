@@ -7,7 +7,7 @@
 
 # ===== Stage 1: Go stack tool builder =====
 # Go 1.25+ required by ntm, bv; 1.24.4+ by slb
-FROM golang:1.24.4-bookworm AS go-tools
+FROM golang:1.26.1-bookworm AS go-tools
 WORKDIR /build
 RUN mkdir -p /out
 
@@ -109,7 +109,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ============================================================
 # Phase 2: Go + Rust (needed for stack tools)
 # ============================================================
-RUN curl -fsSL "https://go.dev/dl/go1.24.4.linux-amd64.tar.gz" | tar -C /usr/local -xz
+RUN curl -fsSL "https://go.dev/dl/go1.26.1.linux-amd64.tar.gz" | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:$PATH"
 
 ENV RUSTUP_HOME="/opt/rustup" \
