@@ -649,12 +649,13 @@ fi
 # ── Generate supervisor program configs ─────────────────────────────────────
 mkdir -p /etc/supervisor/conf.d /data/logs/supervisor
 
-# Determine ports: if OAuth enabled, proxy gets external port, session-manager gets internal
+# Determine ports: SM_PORT env var overrides, otherwise 7681
+# (PORT may be 2222 from TCP proxy for SSH, so don't use PORT for HTTP)
 if [ -n "${OAUTH2_CLIENT_ID:-}" ]; then
-    SM_PORT=7682
-    OAUTH_PORT="${PORT:-7681}"
+    SM_PORT="${SM_PORT:-7682}"
+    OAUTH_PORT="${OAUTH_PORT:-7681}"
 else
-    SM_PORT="${PORT:-7681}"
+    SM_PORT="${SM_PORT:-7681}"
 fi
 
 cat > /etc/supervisor/conf.d/session-manager.conf << EOF
