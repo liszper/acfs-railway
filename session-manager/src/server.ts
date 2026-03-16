@@ -5,6 +5,7 @@ import { PORT } from "./config.js";
 import { checkAuth, authCookieHeader, checkBunAuth } from "./utils/http.js";
 import { getTmuxSessions, ensureTmuxSession } from "./services/sessions.js";
 import { ttydInstances, startTtydForSession } from "./services/ttyd.js";
+import { handleSessionProxy } from "./services/proxy.js";
 import { dashboardHTML } from "./dashboard/template.js";
 import { isNtmAvailable } from "./services/ntm.js";
 import type { WsData } from "./types.js";
@@ -212,6 +213,14 @@ function routeRequest(
     }
   }
 
+  const sessionMatch = url.pathname.match(
+    /^\/s\/([a-zA-Z0-9_-]+)(\/.*)?$/
+  );
+  if (sessionMatch) {
+    handleSessionProxy(req, res, sessionMatch[1]);
+    return;
+  }
+
   res.writeHead(404);
   res.end("Not found");
 }
@@ -259,40 +268,7 @@ export function startServer(): void {
           return ok ? undefined : new Response("Upgrade failed", { status: 500 });
         }
 
-        // --- Session HTTP: proxy directly to ttyd (bypass Node) ---
-        const sessionMatch = url.pathname.match(
-          /^\/s\/([a-zA-Z0-9_-]+)(\/.*)?$/
-        );
-        if (sessionMatch) {
-          if (!checkBunAuth(req)) {
-            return new Response("Unauthorized", {
-              status: 401,
-              headers: { "WWW-Authenticate": 'Basic realm="ACFS"' },
-            });
-          }
-
-          const sessionName = sessionMatch[1];
-          ensureTmuxSession(sessionName);
-          const ttydPort = startTtydForSession(sessionName);
-
-          try {
-            const ttydResp = await fetch(
-              `http://127.0.0.1:${ttydPort}${url.pathname}${url.search}`,
-              { method: req.method, headers: { host: `127.0.0.1:${ttydPort}` } }
-            );
-            const respHeaders = new Headers(ttydResp.headers);
-            respHeaders.append("Set-Cookie", authCookieHeader());
-            return new Response(ttydResp.body, {
-              status: ttydResp.status,
-              headers: respHeaders,
-            });
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : "ttyd proxy error";
-            return new Response(msg, { status: 502 });
-          }
-        }
-
-        // --- Everything else: proxy to Node http server ---
+        // --- Everything else (dashboard, API, session pages): proxy to Node ---
         const targetUrl = `http://127.0.0.1:${nodePort}${url.pathname}${url.search}`;
         try {
           return await fetch(targetUrl, {
