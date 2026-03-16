@@ -5,11 +5,22 @@ import { shellEscape, execAsUser } from "../utils/shell.js";
 import type { ToolStatusMap, SystemStats, EnvStatus } from "../types.js";
 
 const TOOL_LIST = [
-  "claude", "codex", "gemini", "opencode", "ntm", "cass", "br", "bv", "dcg", "slb",
-  "ubs", "cm", "sg", "rg", "bat", "fd", "eza", "delta", "fzf", "zoxide",
-  "lazygit", "atuin", "pt", "rano", "caut", "ms", "apr", "ru", "jfp", "s2p",
-  "brenner", "giil", "csctf", "mdwb", "aadc", "toon", "am", "gh", "railway",
-  "wrangler", "supabase", "vercel", "vault", "code-server", "gopls", "pyright", "rust-analyzer",
+  // AI agents
+  "claude", "codex", "gemini", "opencode",
+  // Multi-agent orchestration
+  "ntm", "slb", "am",
+  // Code quality & safety
+  "dcg", "ubs", "br", "bv", "pt",
+  // Agent workflow
+  "cass", "caut", "ms", "jfp", "rano",
+  // Utilities
+  "sg", "rg", "bat", "fd", "eza", "delta", "fzf", "zoxide", "lazygit", "atuin",
+  // Script tools
+  "apr", "ru", "brenner", "giil", "mdwb", "s2p", "aadc", "toon",
+  // Cloud CLIs
+  "gh", "railway", "wrangler", "supabase", "vercel", "vault",
+  // IDE & LSP
+  "code-server", "gopls", "pyright", "rust-analyzer",
 ];
 
 let toolStatusCache: ToolStatusMap | null = null;

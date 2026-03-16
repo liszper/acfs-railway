@@ -46,8 +46,10 @@ impl TerminalSession {
 
         // Spawn task that reads from channel and forwards to frontend,
         // and also handles write/resize commands from frontend
+        let close_event = format!("terminal-closed-{}", tab_id);
         let reader_task = tokio::spawn(async move {
             eprintln!("[terminal] reader loop started for tab {}", tab_id_owned);
+            let mut reason = "unknown";
             loop {
                 tokio::select! {
                     // Read from SSH channel -> emit to frontend
@@ -60,10 +62,12 @@ impl TerminalSession {
                             }
                             Some(ChannelMsg::Eof) => {
                                 eprintln!("[terminal] {} EOF", tab_id_owned);
+                                reason = "Session ended (EOF)";
                                 break;
                             }
                             None => {
                                 eprintln!("[terminal] {} channel closed", tab_id_owned);
+                                reason = "Connection lost";
                                 break;
                             }
                             other => {
@@ -77,6 +81,7 @@ impl TerminalSession {
                             Some(TerminalCommand::Write(data)) => {
                                 if channel.data(&data[..]).await.is_err() {
                                     eprintln!("[terminal] {} write failed", tab_id_owned);
+                                    reason = "Write failed — connection lost";
                                     break;
                                 }
                             }
@@ -86,6 +91,7 @@ impl TerminalSession {
                             }
                             Some(TerminalCommand::Close) | None => {
                                 eprintln!("[terminal] {} close requested", tab_id_owned);
+                                reason = "closed";
                                 break;
                             }
                         }
@@ -93,7 +99,11 @@ impl TerminalSession {
                 }
             }
             let _ = channel.close().await;
-            eprintln!("[terminal] {} reader loop ended", tab_id_owned);
+            // Notify frontend that this terminal died (unless it was an intentional close)
+            if reason != "closed" {
+                let _ = app.emit(&close_event, reason);
+            }
+            eprintln!("[terminal] {} reader loop ended: {}", tab_id_owned, reason);
         });
 
         Ok(Self {

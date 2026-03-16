@@ -30,7 +30,12 @@ import {
   getLog,
   getBranches,
   getFileDiff,
+  autoPush,
+  autoPushDryRun,
 } from "../services/projects.js";
+import { getAgentProcesses, getAgentStats } from "../services/agents.js";
+import { getBeadsTriage, getBeadsReady, getBeadsNext } from "../services/beads.js";
+import { getRecentEvents } from "../services/events.js";
 import type { NtmSpawnOpts, GitConfigInput } from "../types.js";
 
 export function handleListSessions(
@@ -513,6 +518,128 @@ export async function handleProjectDiff(
     jsonResponse(res, status, result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "diff failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+// --- Agent handlers ---
+
+export function handleAgentProcesses(
+  _req: IncomingMessage,
+  res: ServerResponse
+): void {
+  try {
+    jsonResponse(res, 200, getAgentProcesses());
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "agent processes failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export function handleAgentStats(
+  _req: IncomingMessage,
+  res: ServerResponse
+): void {
+  try {
+    jsonResponse(res, 200, getAgentStats());
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "agent stats failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+// --- Beads handlers ---
+
+export function handleBeadsTriage(
+  _req: IncomingMessage,
+  res: ServerResponse
+): void {
+  try {
+    const result = getBeadsTriage();
+    const status = "error" in result ? 500 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "beads triage failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export function handleBeadsReady(
+  _req: IncomingMessage,
+  res: ServerResponse
+): void {
+  try {
+    const result = getBeadsReady();
+    const status = "error" in result && !Array.isArray(result) ? 500 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "beads ready failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+export function handleBeadsNext(
+  _req: IncomingMessage,
+  res: ServerResponse
+): void {
+  try {
+    const result = getBeadsNext();
+    const status = "error" in result ? 500 : 200;
+    jsonResponse(res, status, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "beads next failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+// --- Events handlers ---
+
+export function handleRecentEvents(
+  req: IncomingMessage,
+  res: ServerResponse
+): void {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    const limitStr = url.searchParams.get("limit");
+    const offsetStr = url.searchParams.get("offset");
+    const limit = limitStr ? parseInt(limitStr, 10) : 50;
+    const offset = offsetStr ? parseInt(offsetStr, 10) : 0;
+    jsonResponse(res, 200, getRecentEvents(limit, offset));
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "recent events failed";
+    jsonResponse(res, 500, { error: msg });
+  }
+}
+
+// --- Auto-push handlers ---
+
+export function handleAutoPush(
+  req: IncomingMessage,
+  res: ServerResponse
+): void {
+  readBody(req)
+    .then((body) => {
+      const project =
+        typeof body.project === "string" ? body.project.trim() : undefined;
+      const result = autoPush(project || undefined);
+      jsonResponse(res, result.ok ? 200 : 500, result);
+    })
+    .catch(() => {
+      jsonResponse(res, 400, { error: "Invalid request body" });
+    });
+}
+
+export async function handleAutoPushStatus(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  try {
+    const url = new URL(req.url || "/", "http://localhost");
+    const project = url.searchParams.get("project") || undefined;
+    const result = await autoPushDryRun(project);
+    jsonResponse(res, 200, result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "auto-push status failed";
     jsonResponse(res, 500, { error: msg });
   }
 }

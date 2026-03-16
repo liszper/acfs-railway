@@ -60,7 +60,7 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
     stopHealthCheck();
     stopReconnect();
     try { await invoke("disconnect_ssh"); } catch {}
-    useTerminalStore.getState().clearAll();
+    useTerminalStore.getState().clearAll("Disconnected by user");
     set({ status: "disconnected", error: null, reconnectAttempt: 0 });
   },
 
@@ -86,15 +86,8 @@ export const useConnectionStore = create<ConnectionStore>((set, get) => ({
       set({ status: "connected", error: null, reconnectAttempt: 0 });
       startHealthCheck();
 
-      // Re-open terminals
-      const tabs = useTerminalStore.getState().tabs;
-      for (const tab of tabs) {
-        if (tab.status === "disconnected") {
-          try {
-            await useTerminalStore.getState().reopenTab(tab.sessionName, tab.id);
-          } catch {}
-        }
-      }
+      // Re-open all disconnected terminals
+      useTerminalStore.getState().reconnectAll();
     } catch (e) {
       const delay = RECONNECT_DELAYS[Math.min(attempt - 1, RECONNECT_DELAYS.length - 1)];
       set({ status: "reconnecting", error: `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...` });
@@ -138,21 +131,22 @@ function startHealthCheck() {
       // Light API ping — tests both API reachability and auth
       await invoke("api_request", { method: "GET", path: "/api/sessions", body: null });
       // API works — connection is healthy, no action needed
-    } catch {
+    } catch (e) {
       // API unreachable — check if SSH is also dead
-      console.warn("[health] API unreachable, checking SSH...");
+      const errMsg = String(e);
+      console.warn("[health] API unreachable:", errMsg);
       try {
         const alive = await invoke<boolean>("connection_status");
         if (!alive) {
           console.warn("[health] SSH dead, triggering reconnect");
-          useTerminalStore.getState().clearAll();
-          useConnectionStore.setState({ status: "reconnecting", reconnectAttempt: 0 });
+          useTerminalStore.getState().clearAll("Server unreachable — SSH connection lost");
+          useConnectionStore.setState({ status: "reconnecting", reconnectAttempt: 0, error: "Server unreachable" });
           useConnectionStore.getState().reconnect();
         }
       } catch {
         console.warn("[health] SSH check failed, triggering reconnect");
-        useTerminalStore.getState().clearAll();
-        useConnectionStore.setState({ status: "reconnecting", reconnectAttempt: 0 });
+        useTerminalStore.getState().clearAll("Server unreachable — SSH connection lost");
+        useConnectionStore.setState({ status: "reconnecting", reconnectAttempt: 0, error: "Server unreachable" });
         useConnectionStore.getState().reconnect();
       }
     }

@@ -6,7 +6,6 @@ import { checkAuth, authCookieHeader, checkBunAuth } from "./utils/http.js";
 import { getTmuxSessions, ensureTmuxSession } from "./services/sessions.js";
 import { ttydInstances, startTtydForSession } from "./services/ttyd.js";
 import { handleSessionProxy } from "./services/proxy.js";
-import { dashboardHTML } from "./dashboard/template.js";
 import { isNtmAvailable } from "./services/ntm.js";
 import type { WsData } from "./types.js";
 import {
@@ -54,6 +53,14 @@ import {
   handleProjectLog,
   handleProjectBranches,
   handleProjectDiff,
+  handleAgentProcesses,
+  handleAgentStats,
+  handleBeadsTriage,
+  handleBeadsReady,
+  handleBeadsNext,
+  handleRecentEvents,
+  handleAutoPush,
+  handleAutoPushStatus,
 } from "./routes/api.js";
 
 function routeRequest(
@@ -65,17 +72,11 @@ function routeRequest(
   if (!checkAuth(req, res)) return;
 
   if (url.pathname === "/" || url.pathname === "") {
-    const sessions = getTmuxSessions();
-    for (const s of sessions) {
-      if (!ttydInstances.has(s.name)) {
-        startTtydForSession(s.name);
-      }
-    }
     res.writeHead(200, {
-      "Content-Type": "text/html",
+      "Content-Type": "application/json",
       "Set-Cookie": authCookieHeader(),
     });
-    res.end(dashboardHTML(sessions));
+    res.end(JSON.stringify({ ok: true, message: "ACFS Session Manager API" }));
     return;
   }
 
@@ -304,6 +305,50 @@ function routeRequest(
     return;
   }
 
+  // --- Agent routes ---
+  if (url.pathname === "/api/agents/processes" && req.method === "GET") {
+    handleAgentProcesses(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/agents/stats" && req.method === "GET") {
+    handleAgentStats(req, res);
+    return;
+  }
+
+  // --- Beads routes ---
+  if (url.pathname === "/api/beads/triage" && req.method === "GET") {
+    handleBeadsTriage(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/beads/ready" && req.method === "GET") {
+    handleBeadsReady(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/beads/next" && req.method === "GET") {
+    handleBeadsNext(req, res);
+    return;
+  }
+
+  // --- Events routes ---
+  if (url.pathname === "/api/events/recent" && req.method === "GET") {
+    handleRecentEvents(req, res);
+    return;
+  }
+
+  // --- Auto-push routes ---
+  if (url.pathname === "/api/auto-push" && req.method === "POST") {
+    handleAutoPush(req, res);
+    return;
+  }
+
+  if (url.pathname === "/api/auto-push/status" && req.method === "GET") {
+    handleAutoPushStatus(req, res);
+    return;
+  }
+
   const sessionMatch = url.pathname.match(
     /^\/s\/([a-zA-Z0-9_-]+)(\/.*)?$/
   );
@@ -359,7 +404,7 @@ export function startServer(): void {
           return ok ? undefined : new Response("Upgrade failed", { status: 500 });
         }
 
-        // --- Everything else (dashboard, API, session pages): proxy to Node ---
+        // --- Everything else (API, session pages): proxy to Node ---
         const targetUrl = `http://127.0.0.1:${nodePort}${url.pathname}${url.search}`;
         try {
           const nodeResp = await fetch(targetUrl, {
@@ -436,8 +481,7 @@ export function startServer(): void {
       },
     });
 
-    console.log(`ACFS Session Manager running on port ${PORT}`);
-    console.log(`Dashboard: http://localhost:${PORT}/`);
+    console.log(`ACFS Session Manager API running on port ${PORT}`);
     console.log(`Main terminal: http://localhost:${PORT}/s/main/`);
     console.log(`NTM available: ${isNtmAvailable()}`);
   });

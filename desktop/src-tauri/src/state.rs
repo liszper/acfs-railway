@@ -69,11 +69,19 @@ impl AppState {
         let start_dir = project_path
             .as_deref()
             .unwrap_or("/data/projects");
+        // Create session if needed, then attach with tmux chrome hidden.
+        // We hide the status bar on attach and restore it on client-detach so
+        // web/ttyd clients are not affected. aggressive-resize lets each client
+        // window use its own exact size.
+        let sn = shell_escape(&session_name);
+        let sd = shell_escape(start_dir);
         let cmd = format!(
-            "tmux attach-session -t {} 2>/dev/null || tmux new-session -s {} -c {}",
-            shell_escape(&session_name),
-            shell_escape(&session_name),
-            shell_escape(start_dir),
+            "tmux has-session -t {sn} 2>/dev/null || tmux new-session -d -s {sn} -c {sd}; \
+             tmux set-option -t {sn} status off 2>/dev/null; \
+             tmux set-option -t {sn} mouse on 2>/dev/null; \
+             tmux set-window-option -t {sn} aggressive-resize on 2>/dev/null; \
+             tmux set-hook -t {sn} client-detached 'set-option -t {sn} status on' 2>/dev/null; \
+             exec tmux attach-session -t {sn}"
         );
 
         let terminal = TerminalSession::start(ssh, &tab_id, &cmd, app).await?;

@@ -1,17 +1,25 @@
 import { useState } from "react";
 import { TerminalTabs } from "./TerminalTabs";
 import { SessionsPanel } from "./SessionsPanel";
+import { NtmPanel } from "./NtmPanel";
 import { ProjectsPanel } from "./ProjectsPanel";
+import { AgentMonitorPanel } from "./AgentMonitorPanel";
+import { BeadsPanel } from "./BeadsPanel";
+import { EventsPanel } from "./EventsPanel";
+import { SystemPanel } from "./SystemPanel";
 import { useConnectionStore } from "../store/connection";
 
-type SidePanel = "sessions" | "tools" | "secrets" | "projects" | null;
+type SidePanel = "sessions" | "ntm" | "projects" | "agents" | "beads" | "events" | "system" | null;
 
-const PANEL_ICONS: Record<string, string> = {
-  sessions: "⊞",
-  tools: "⚙",
-  secrets: "⚷",
-  projects: "◇",
-};
+const PANEL_ICONS: { id: SidePanel & string; icon: string; label: string }[] = [
+  { id: "sessions", icon: "⊞", label: "Sessions" },
+  { id: "ntm",      icon: "⊛", label: "NTM" },
+  { id: "projects",  icon: "◇", label: "Projects" },
+  { id: "agents",    icon: "◉", label: "Agents" },
+  { id: "beads",     icon: "◈", label: "Beads" },
+  { id: "events",    icon: "◎", label: "Events" },
+  { id: "system",    icon: "⚙", label: "System" },
+];
 
 function StatusBar() {
   const { status, error, reconnectAttempt, reconnect, disconnect } = useConnectionStore();
@@ -22,12 +30,22 @@ function StatusBar() {
     <div className={`status-bar status-${status}`}>
       <span className="status-dot" />
       <span className="status-text">
-        {status === "reconnecting" && (error || `Reconnecting (attempt ${reconnectAttempt})...`)}
-        {status === "offline" && "Offline — waiting for connection"}
+        {status === "reconnecting" && (
+          <>
+            Reconnecting{reconnectAttempt > 0 ? ` (attempt ${reconnectAttempt}/10)` : ""}
+            {error && <span className="status-error"> — {error}</span>}
+          </>
+        )}
+        {status === "offline" && (
+          <>
+            Network offline
+            {error && <span className="status-error"> — {error}</span>}
+          </>
+        )}
       </span>
       <div className="status-actions">
-        {status === "reconnecting" && (
-          <button onClick={() => reconnect()} className="status-btn">Retry</button>
+        {(status === "reconnecting" || status === "offline") && (
+          <button onClick={() => reconnect()} className="status-btn">Retry Now</button>
         )}
         <button onClick={() => disconnect()} className="status-btn status-btn-disconnect">Disconnect</button>
       </div>
@@ -44,14 +62,14 @@ export function MainLayout() {
     <div className="main-layout">
       <div className="sidebar">
         <div className="sidebar-nav">
-          {(["sessions", "tools", "secrets", "projects"] as const).map((p) => (
+          {PANEL_ICONS.map((p) => (
             <button
-              key={p}
-              className={`sidebar-btn ${sidePanel === p ? "active" : ""}`}
-              onClick={() => setSidePanel(sidePanel === p ? null : p)}
-              title={p[0].toUpperCase() + p.slice(1)}
+              key={p.id}
+              className={`sidebar-btn ${sidePanel === p.id ? "active" : ""}`}
+              onClick={() => setSidePanel(sidePanel === p.id ? null : p.id)}
+              title={p.label}
             >
-              {PANEL_ICONS[p]}
+              {p.icon}
             </button>
           ))}
         </div>
@@ -66,9 +84,12 @@ export function MainLayout() {
           {sidePanel && (
             <div className="side-panel">
               {sidePanel === "sessions" && <SessionsPanel />}
-              {sidePanel === "tools" && <div className="panel-placeholder">Tools (coming soon)</div>}
-              {sidePanel === "secrets" && <div className="panel-placeholder">Secrets (coming soon)</div>}
+              {sidePanel === "ntm" && <NtmPanel />}
               {sidePanel === "projects" && <ProjectsPanel />}
+              {sidePanel === "agents" && <AgentMonitorPanel />}
+              {sidePanel === "beads" && <BeadsPanel />}
+              {sidePanel === "events" && <EventsPanel />}
+              {sidePanel === "system" && <SystemPanel />}
             </div>
           )}
           <div className="terminal-area">

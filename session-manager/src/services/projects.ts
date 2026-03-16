@@ -1,5 +1,5 @@
 import { ACFS_USER } from "../config.js";
-import { shellEscape, execAsUserSafe, execAsUserAsync } from "../utils/shell.js";
+import { shellEscape, execAsUser, execAsUserSafe, execAsUserAsync } from "../utils/shell.js";
 import type {
   ProjectInfo,
   GitStatus,
@@ -725,4 +725,82 @@ export async function getFileDiff(
   }
 
   return { diff };
+}
+
+// ---------------------------------------------------------------------------
+// 14. autoPush
+// ---------------------------------------------------------------------------
+
+export function autoPush(projectName?: string): { ok: boolean; output: string } {
+  const cmd = projectName
+    ? `auto-push ${shellEscape(`${PROJECTS_DIR}/${projectName}`)}`
+    : "auto-push";
+
+  try {
+    const output = execAsUser(cmd, 30000);
+    return { ok: true, output: output.trim() };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "auto-push failed";
+    return { ok: false, output: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 15. autoPushDryRun
+// ---------------------------------------------------------------------------
+
+export async function autoPushDryRun(
+  projectName?: string
+): Promise<{ projects: { name: string; changes: number }[] }> {
+  const results: { name: string; changes: number }[] = [];
+
+  if (projectName) {
+    const nameErr = validateProjectName(projectName);
+    if (nameErr) return { projects: [] };
+
+    const projectPath = `${PROJECTS_DIR}/${projectName}`;
+    const statusResult = await execAsUserAsync(
+      `git -C ${shellEscape(projectPath)} status --porcelain`,
+      5000
+    );
+    const changeCount = statusResult.stdout
+      .trim()
+      .split("\n")
+      .filter((l) => l.length > 0).length;
+    if (changeCount > 0) {
+      results.push({ name: projectName, changes: changeCount });
+    }
+    return { projects: results };
+  }
+
+  const lsResult = await execAsUserAsync(`ls -1d ${PROJECTS_DIR}/*/`, 5000);
+  if (lsResult.exitCode !== 0 || !lsResult.stdout.trim()) {
+    return { projects: results };
+  }
+
+  const dirs = lsResult.stdout
+    .trim()
+    .split("\n")
+    .map((d) => d.replace(/\/+$/, ""));
+
+  for (const dirPath of dirs) {
+    const name = dirPath.split("/").pop() || "";
+    if (!name) continue;
+
+    const statusResult = await execAsUserAsync(
+      `git -C ${shellEscape(dirPath)} status --porcelain 2>/dev/null`,
+      5000
+    );
+    if (statusResult.exitCode !== 0) continue;
+
+    const changeCount = statusResult.stdout
+      .trim()
+      .split("\n")
+      .filter((l) => l.length > 0).length;
+    if (changeCount > 0) {
+      results.push({ name, changes: changeCount });
+    }
+  }
+
+  return { projects: results };
 }

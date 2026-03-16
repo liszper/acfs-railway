@@ -61,6 +61,19 @@ function migrate(): void {
   db.run("CREATE INDEX IF NOT EXISTS idx_activity_project ON activity(project_id)");
   db.run("CREATE INDEX IF NOT EXISTS idx_activity_created ON activity(created_at)");
   db.run("CREATE INDEX IF NOT EXISTS idx_session_projects_session ON session_projects(session_name)");
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      name TEXT PRIMARY KEY,
+      project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      cwd TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'terminated')),
+      created_at TEXT DEFAULT (datetime('now')),
+      terminated_at TEXT
+    )
+  `);
+
+  db.run("CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status)");
 }
 
 migrate();

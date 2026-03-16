@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/client";
 import { useTerminalStore } from "../store/terminals";
+import { GitPanel } from "./GitPanel";
 import type { ProjectRecord, ActivityRecord } from "../api/types";
 
 type FilterMode = "all" | "active" | "archived" | "pinned";
@@ -47,6 +48,7 @@ export function ProjectsPanel() {
   const [syncing, setSyncing] = useState(false);
   const [available, setAvailable] = useState(true);
   const [activities, setActivities] = useState<Record<number, ActivityRecord[]>>({});
+  const [gitProject, setGitProject] = useState<string | null>(null);
   const [activityOffsets, setActivityOffsets] = useState<Record<number, number>>({});
   const [editDesc, setEditDesc] = useState<Record<number, string>>({});
   const [tagInput, setTagInput] = useState("");
@@ -153,6 +155,11 @@ export function ProjectsPanel() {
 
   // ── Render ──
 
+  // Show GitPanel sub-view when a project's git is opened
+  if (gitProject) {
+    return <GitPanel projectName={gitProject} onBack={() => setGitProject(null)} />;
+  }
+
   if (!available) {
     return <div className="projects-panel"><h3>Projects</h3><div className="empty">Project management not available</div></div>;
   }
@@ -245,6 +252,7 @@ export function ProjectsPanel() {
 
               <div className="project-actions">
                 <button className="project-action-btn" onClick={(e) => { e.stopPropagation(); openTab(p.name, p.path); }} title="Open terminal">&gt;_</button>
+                <button className="project-action-btn" onClick={(e) => { e.stopPropagation(); setGitProject(p.name); }} title="Git operations">G</button>
                 <button className="project-action-btn" onClick={(e) => toggleArchive(e, p)} title={p.status === "archived" ? "Unarchive" : "Archive"}>
                   {p.status === "archived" ? "\u21A9" : "\u2193"}
                 </button>

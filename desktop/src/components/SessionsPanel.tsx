@@ -5,6 +5,27 @@ import type { SessionInfo, ProjectRecord } from "../api/types";
 
 const AC: Record<string, string> = { claude: "#bc8cff", codex: "#3fb950", gemini: "#58a6ff" };
 
+type Tool = "shell" | "claude" | "codex" | "gemini" | "opencode" | "lazygit" | "ntm";
+
+interface ToolDef {
+  id: Tool;
+  label: string;
+  color: string;
+  badge: string;
+  /** The actual command sent to the tmux session */
+  command: string | null;
+  desc: string;
+}
+
+const TOOLS: ToolDef[] = [
+  { id: "shell",    label: "Shell",    color: "var(--text-muted)", badge: ">_", command: null,     desc: "Plain terminal" },
+  { id: "claude",   label: "Claude",   color: "#bc8cff",          badge: "C",  command: "cc",     desc: "Claude Code agent" },
+  { id: "codex",    label: "Codex",    color: "#3fb950",          badge: "X",  command: "cod",    desc: "Codex CLI agent" },
+  { id: "gemini",   label: "Gemini",   color: "#58a6ff",          badge: "G",  command: "gmi",    desc: "Gemini CLI agent" },
+  { id: "opencode", label: "OpenCode", color: "var(--yellow)",    badge: "O",  command: "opencode", desc: "OpenCode agent" },
+  { id: "lazygit",  label: "Lazygit",  color: "#e06c75",          badge: "LG", command: "lazygit",  desc: "Git TUI" },
+];
+
 function timeAgo(ts: number): string {
   const s = (Date.now() / 1000) - ts;
   if (s < 60) return "now";
@@ -101,9 +122,10 @@ export function SessionsPanel() {
   const unclaimed = sessions.filter((s) => !claimed.has(s.name));
   if (unclaimed.length > 0 || projects.length === 0) groups.push({ project: null, sessions: unclaimed });
 
-  const doCreateSession = async (name: string, project: ProjectRecord | null) => {
+  const doCreateSession = async (name: string, tool: ToolDef, project: ProjectRecord | null) => {
     await apiPost("/api/sessions", { name, cwd: project?.path });
-    openTab(name, project?.path);
+    // Pass command to openTab — it sends keystrokes after the terminal is attached and ready
+    openTab(name, project?.path, tool.command || undefined);
     if (project) try { await apiPost(`/api/pm/projects/${project.id}/sessions/${name}`); } catch {}
     await refresh();
     setTimeout(refresh, 1000);
@@ -181,7 +203,7 @@ export function SessionsPanel() {
           sessions={g.sessions}
           openNames={openNames}
           onOpen={(name) => openTab(name, g.project?.path)}
-          onCreate={(name) => doCreateSession(name, g.project)}
+          onCreate={(name, tool) => doCreateSession(name, tool, g.project)}
           onSelect={setExpandedDetail}
           onKill={setConfirmKill}
         />
@@ -195,20 +217,23 @@ function ProjectGroup({ project, sessions, openNames, onOpen, onCreate, onSelect
   sessions: SessionInfo[];
   openNames: Set<string>;
   onOpen: (name: string) => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, tool: ToolDef) => void;
   onSelect: (name: string) => void;
   onKill: (s: SessionInfo) => void;
 }) {
   const [open, setOpen] = useState(true);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
+  const [tool, setTool] = useState<Tool>("shell");
   const [busy, setBusy] = useState(false);
+
+  const selectedTool = TOOLS.find((t) => t.id === tool)!;
 
   const doCreate = async () => {
     const n = name.trim();
     if (!n || busy) return;
     setBusy(true);
-    try { await onCreate(n); setAdding(false); setName(""); } catch {} finally { setBusy(false); }
+    try { await onCreate(n, selectedTool); setAdding(false); setName(""); setTool("shell"); } catch {} finally { setBusy(false); }
   };
 
   return (
@@ -218,20 +243,38 @@ function ProjectGroup({ project, sessions, openNames, onOpen, onCreate, onSelect
         <span className="s-grp-icon">{project ? "◆" : "○"}</span>
         <span className="s-grp-name">{project?.name ?? "Ungrouped"}</span>
         {sessions.length > 0 && <span className="s-grp-cnt">{sessions.length}</span>}
-        <button className="s-grp-add" onClick={(e) => { e.stopPropagation(); setAdding(true); setName(project ? `${project.name}-` : ""); setOpen(true); }}>+</button>
+        <button className="s-grp-add" onClick={(e) => { e.stopPropagation(); setAdding(true); setName(project ? `${project.name}-` : ""); setTool("shell"); setOpen(true); }}>+</button>
       </div>
       {open && (
         <div className="s-grp-body">
           {adding && (
-            <div className="s-new">
-              <input
-                value={name} onChange={(e) => setName(e.target.value)}
-                placeholder={project ? `${project.name}-task` : "session-name"}
-                onKeyDown={(e) => { if (e.key === "Enter") doCreate(); if (e.key === "Escape") setAdding(false); }}
-                autoFocus
-              />
-              <button onClick={doCreate} disabled={!name.trim() || busy}>{busy ? "..." : "Go"}</button>
-              <button className="s-new-x" onClick={() => setAdding(false)}>×</button>
+            <div className="s-new-form">
+              <div className="s-new">
+                <input
+                  value={name} onChange={(e) => setName(e.target.value)}
+                  placeholder={project ? `${project.name}-task` : "session-name"}
+                  onKeyDown={(e) => { if (e.key === "Enter") doCreate(); if (e.key === "Escape") { setAdding(false); } }}
+                  autoFocus
+                />
+                <button onClick={doCreate} disabled={!name.trim() || busy}>{busy ? "..." : "Go"}</button>
+                <button className="s-new-x" onClick={() => setAdding(false)}>×</button>
+              </div>
+              <div className="s-tool-picker">
+                {TOOLS.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`s-tool-btn ${tool === t.id ? "s-tool-active" : ""}`}
+                    style={{ "--tool-color": t.color } as React.CSSProperties}
+                    onClick={() => setTool(t.id)}
+                    title={t.desc}
+                  >
+                    {t.badge}
+                  </button>
+                ))}
+              </div>
+              {tool !== "shell" && (
+                <div className="s-tool-hint">{selectedTool.desc}</div>
+              )}
             </div>
           )}
           {sessions.map((s) => (
